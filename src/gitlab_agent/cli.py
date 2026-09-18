@@ -85,7 +85,7 @@ def _agent_prompt(
         "- Work only inside the worktree above.\n"
         f"- Do not push directly to {base_ref}.\n"
         "- Do not force-push.\n"
-        "- Do not use an OpenAI API key or OpenAI model API.\n"
+        "- Do not introduce direct model API calls or model API keys into this project; use the selected CLI's existing signed-in session/entitlement.\n"
         "- Prefer gitlab-agent for status, tests, commit, push, and MR lifecycle.\n"
         "- Run relevant tests before remote writes.\n"
         f"- Review gitlab-agent diff {workspace_id} before committing/pushing.\n"
