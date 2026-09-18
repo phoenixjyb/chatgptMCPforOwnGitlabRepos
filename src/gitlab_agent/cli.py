@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import AgentSettings
+from .gitlab_api import GitLabAPI
 from .runner import CommandRunner
 from .workspace import WorkspaceManager
 
@@ -90,6 +91,8 @@ def _safe_config(settings: AgentSettings) -> dict[str, object]:
         "config_file": str(settings.config_file),
         "gitlab_base_url": settings.gitlab_base_url,
         "api_token_set": bool(settings.api_token),
+        "api_verify_ssl": settings.api_verify_ssl,
+        "api_trust_env": settings.api_trust_env,
         "git_token_set": bool(settings.git_token),
         "git_username": settings.git_username,
         "git_trust_env": settings.git_trust_env,
@@ -127,6 +130,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("project")
     p.add_argument("--base-ref", default=None)
     p.add_argument("--task", default="task")
+    p.add_argument("--goal", default="")
+
+    p = sub.add_parser(
+        "checkout-branch",
+        help="Reconstruct a managed workspace from an existing remote feature branch",
+    )
+    p.add_argument("project")
+    p.add_argument("branch")
+    p.add_argument("--base-ref", default=None)
+    p.add_argument("--goal", default="")
+
+    p = sub.add_parser(
+        "checkout-mr",
+        help="Reconstruct a managed workspace from an existing GitLab Merge Request",
+    )
+    p.add_argument("project")
+    p.add_argument("iid", type=int)
     p.add_argument("--goal", default="")
 
     p = sub.add_parser("list", help="List managed workspaces")
@@ -231,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
         settings = AgentSettings.load()
         manager = WorkspaceManager(settings)
         runner = CommandRunner(settings, manager)
+        gitlab_api = GitLabAPI(settings)
 
         if args.command == "config":
             result = _safe_config(settings)
@@ -247,6 +268,52 @@ def main(argv: list[str] | None = None) -> int:
                 task_slug=args.task,
             )
             result = _handoff(manager, str(created["workspace_id"]), args.goal)
+        elif args.command == "checkout-branch":
+            restored = manager.checkout_remote_branch(
+                args.project,
+                args.branch,
+                base_ref=args.base_ref,
+            )
+            result = _handoff(manager, str(restored["workspace_id"]), args.goal)
+        elif args.command == "checkout-mr":
+            mr = gitlab_api.merge_request(args.project, args.iid)
+            source_project_id = mr.get("source_project_id")
+            target_project_id = mr.get("target_project_id")
+            if (
+                source_project_id is not None
+                and target_project_id is not None
+                and source_project_id != target_project_id
+            ):
+                raise RuntimeError(
+                    "checkout-mr currently supports same-project Merge Requests only"
+                )
+            source_branch = str(mr.get("source_branch") or "").strip()
+            target_branch = str(mr.get("target_branch") or "").strip()
+            web_url = str(mr.get("web_url") or "").strip() or None
+            if not source_branch or not target_branch:
+                raise RuntimeError("GitLab MR response is missing source/target branch")
+            restored = manager.checkout_remote_branch(
+                args.project,
+                source_branch,
+                base_ref=target_branch,
+                merge_request_url=web_url,
+            )
+            handoff = _handoff(
+                manager,
+                str(restored["workspace_id"]),
+                args.goal or f"Resume MR !{args.iid}: {mr.get('title', '')}",
+            )
+            result = {
+                "merge_request": {
+                    "iid": mr.get("iid"),
+                    "title": mr.get("title"),
+                    "state": mr.get("state"),
+                    "source_branch": source_branch,
+                    "target_branch": target_branch,
+                    "web_url": web_url,
+                },
+                **handoff,
+            }
         elif args.command == "list":
             result = [manager.status(state.workspace_id) for state in manager.list_states()]
         elif args.command == "status":
