@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.0-alpha.1 - Unreleased
+## 0.2.0-alpha.2 - Unreleased
+
+- Add user-level editable installation for `gitlab-agent`.
+- Add stable config lookup via `~/.config/gitlab-agent/.env`.
+- Add `config`, `task`, `resume`, and `path` helper commands.
+- Add Codex-ready handoff prompts from `task` / `resume`.
+- Add `push-update` for repeated commit/push cycles on an existing MR branch.
+- Add regression tests proving a second commit updates the same remote feature branch.
+- Keep zero OpenAI model API usage as a CI-enforced invariant.
+
+## 0.2.0-alpha.1
 
 - Keep the ChatGPT MCP read-only for the personal-Pro workflow.
 - Add a reusable local coding engine for Codex/terminal use.
