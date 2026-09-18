@@ -387,6 +387,106 @@ class WorkspaceManager:
         self._progress(f"workspace ready: {worktree_path}")
         return self.status(workspace_id)
 
+    def checkout_remote_branch(
+        self,
+        project: str,
+        branch: str,
+        *,
+        base_ref: str | None = None,
+        merge_request_url: str | None = None,
+    ) -> dict[str, object]:
+        project = project.strip().strip("/")
+        branch = branch.strip()
+        if not project or "/" not in project:
+            raise ValueError("project must be a GitLab path_with_namespace")
+        if not branch:
+            raise ValueError("branch must not be empty")
+        self.settings.assert_project_allowed_for_workspace(project)
+        if not branch.startswith(self.settings.branch_prefix):
+            raise RuntimeError(
+                f"Refusing to manage remote branch {branch!r}: it does not start with "
+                f"configured prefix {self.settings.branch_prefix!r}"
+            )
+
+        self._progress(f"reconstructing workspace for {project}:{branch}")
+        repo_path = self._ensure_cached_repo(project)
+
+        remote_ref = f"refs/remotes/origin/{branch}"
+        remote_sha_proc = self._run_git(
+            [
+                "--git-dir",
+                str(repo_path),
+                "rev-parse",
+                "--verify",
+                f"{remote_ref}^{{commit}}",
+            ],
+            check=False,
+        )
+        if remote_sha_proc.returncode != 0:
+            raise RuntimeError(
+                f"Remote branch {branch!r} was not found after fetch for project {project!r}"
+            )
+        remote_sha = remote_sha_proc.stdout.strip()
+
+        effective_base = (base_ref or self.settings.default_base_ref).strip()
+        base_sha = self._resolve_base_sha(repo_path, effective_base)
+
+        workspace_id = uuid.uuid4().hex[:12]
+        worktree_path = self.worktrees_dir / workspace_id
+
+        # The bare cache may retain a local branch from an abandoned workspace.
+        # Refuse to reuse a branch that is already checked out by another worktree.
+        existing = self._run_git(
+            ["--git-dir", str(repo_path), "show-ref", "--verify", f"refs/heads/{branch}"],
+            check=False,
+        )
+        if existing.returncode == 0:
+            self._run_git(
+                ["--git-dir", str(repo_path), "branch", "-D", branch],
+                check=False,
+            )
+
+        self._progress(f"creating worktree {workspace_id} from origin/{branch} ...")
+        self._run_git(
+            [
+                "--git-dir",
+                str(repo_path),
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                str(worktree_path),
+                remote_ref,
+            ]
+        )
+        self._run_git(
+            [
+                "branch",
+                "--set-upstream-to",
+                f"origin/{branch}",
+                branch,
+            ],
+            cwd=worktree_path,
+        )
+
+        state = WorkspaceState(
+            workspace_id=workspace_id,
+            project=project,
+            repo_path=str(repo_path),
+            worktree_path=str(worktree_path),
+            base_ref=effective_base,
+            base_sha=base_sha,
+            branch=branch,
+            created_at=_utc_now(),
+            pushed=True,
+            last_commit=remote_sha,
+            remote_branch=branch,
+            merge_request_url=merge_request_url,
+        )
+        self._save_state(state)
+        self._progress(f"workspace restored: {worktree_path}")
+        return self.status(workspace_id)
+
     def status(self, workspace_id: str) -> dict[str, object]:
         state = self.get_state(workspace_id)
         worktree = self._worktree(state)
