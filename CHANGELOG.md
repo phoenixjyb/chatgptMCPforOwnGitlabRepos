@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.3.0-alpha.3 - Unreleased
+## 0.3.0-alpha.4 - Unreleased
+
+- Add high-level `actual-coder start PROJECT --task ... --goal ...` lifecycle orchestration.
+- Run ActualCoder doctor as a preflight gate before creating a start workspace.
+- Load and validate the remote `.actualcoder.yaml`, using its base branch when the CLI does not explicitly override it.
+- Default `start` to project-aware `--agent auto`.
+- Fail before workspace creation when the selected explicit backend is not installed.
+- Inject repository instructions, protected paths, and expected validation commands into the generated handoff while explicitly subordinating repository-owned guidance to ActualCoder rules and the user goal.
+- Launch Codex with the generated positional initial prompt and Copilot with interactive `-i` initial prompt.
+- Add `--no-launch` for zero-model-use preparation/validation and `--offline-doctor` for preflight network control.
+- Do not enable broad automatic tool approval or full-auto modes.
+- Launch backends through direct subprocess argv without a shell.
+- Add regression tests for project-context preparation and mocked backend launching.
+
+## 0.3.0-alpha.3
 
 - Add opt-in `--agent auto` to task, resume, branch recovery, and MR recovery handoffs.
 - Read `agents.preferred` from the remote `.actualcoder.yaml` when auto-selection is requested.
