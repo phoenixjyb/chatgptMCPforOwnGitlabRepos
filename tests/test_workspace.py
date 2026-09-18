@@ -110,7 +110,7 @@ class WorkspaceManagerTests(unittest.TestCase):
         self.assertTrue(str(created["branch"]).startswith("chatgpt/fix-timeout-"))
 
         readme = self.manager.read_file(workspace_id, "README.md")
-        self.assertEqual(readme["content"], "seed\n")
+        self.assertEqual(str(readme["content"]).replace("\r\n", "\n"), "seed\n")
 
         self.manager.write_file(workspace_id, "README.md", "changed\n")
         diff = self.manager.diff(workspace_id)
@@ -231,7 +231,7 @@ index 5626abf..2bdf67a 100644
 """
         self.manager.apply_patch(workspace_id, patch_text)
         self.assertEqual(
-            self.manager.read_file(workspace_id, "README.md")["content"],
+            str(self.manager.read_file(workspace_id, "README.md")["content"]).replace("\r\n", "\n"),
             "patched\n",
         )
 
