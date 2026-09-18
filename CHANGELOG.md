@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 - 2026-09-18
+
+- Add native Windows PowerShell installer and MCP launcher.
+- Add Windows-safe Git `GIT_ASKPASS` handling and runner `USERPROFILE` isolation.
+- Make the read MCP/smoke test use the same per-user config lookup as ActualCoder.
+- Add Linux/macOS/Windows CI coverage for the packaged CLI/workspace workflow.
+- Add `docs/OPENAI_TUNNEL_TEAM_SETUP_CN.md` covering per-user Tunnel ID, Runtime API Key, permissions, platform installs, and credential storage.
+- Expand the Chinese team guide and README with native Windows support.
+- Document macOS Keychain, Linux protected secret files/Secret Service, and Windows DPAPI/ACL guidance.
+- Keep ChatGPT Pro MCP usage read/fetch-only; local GitLab writes remain in ActualCoder.
+
 ## 0.2.0 - 2026-09-18
 
 - Rename the user-facing orchestration layer from **CodingAgent** to **ActualCoder**.
