@@ -56,9 +56,17 @@ server.py
 
 ## 1. 环境要求
 
-建议：
+支持：
 
-- macOS 或 Linux；
+| 平台 | ActualCoder / gitlab-agent | ChatGPT MCP launcher | tunnel-client |
+|---|---|---|---|
+| macOS | 原生支持 | `run_mcp.sh` | 官方 Homebrew |
+| Linux | 原生支持 | `run_mcp.sh` | 官方 binary / source build |
+| Windows 10/11 | 原生 PowerShell 支持 | `run_mcp.ps1` | `tunnel-client.exe` |
+| Windows + WSL2 | 支持（按 Linux 使用） | `run_mcp.sh` | Linux binary |
+
+基础要求：
+
 - Git；
 - Python 3.10+；
 - `uv`；
@@ -67,17 +75,25 @@ server.py
   - Codex CLI；
   - GitHub Copilot CLI。
 
-安装 `uv`（macOS）：
+安装 `uv` 时使用 uv 官方对应平台安装方式；macOS 也可：
 
 ```bash
 brew install uv
 ```
 
-验证：
+macOS / Linux 验证：
 
 ```bash
 git --version
 python3 --version
+uv --version
+```
+
+Windows PowerShell 验证：
+
+```powershell
+git --version
+python --version
 uv --version
 ```
 
@@ -247,6 +263,8 @@ http://gitlab.example.internal
 
 ## 7. 安装全局 CLI
 
+### macOS / Linux
+
 在仓库根目录：
 
 ```bash
@@ -262,6 +280,20 @@ cp .env ~/.config/gitlab-agent/.env
 chmod 700 ~/.config/gitlab-agent
 chmod 600 ~/.config/gitlab-agent/.env
 ```
+
+### Windows PowerShell
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install_user.ps1
+
+$ConfigDir = Join-Path $HOME ".config\gitlab-agent"
+$ConfigFile = Join-Path $ConfigDir ".env"
+New-Item -ItemType Directory -Force $ConfigDir | Out-Null
+Copy-Item .env $ConfigFile
+```
+
+Windows 建议再用 ACL 将 `.env` 限制为当前用户访问；完整命令见
+[OpenAI Tunnel / 跨平台凭证配置指南](OPENAI_TUNNEL_TEAM_SETUP_CN.md)。
 
 配置读取优先级：
 
@@ -727,7 +759,13 @@ gitlab-agent cleanup "$WS" --force
 
 ActualCoder 不依赖 ChatGPT MCP。
 
-如果团队成员还希望在普通 ChatGPT 中直接读 GitLab，可额外配置 read-only MCP。
+如果团队成员都有 ChatGPT Pro，并希望在普通 ChatGPT 中直接读 GitLab，推荐每位成员配置**自己的 Secure MCP Tunnel**。
+
+完整的 Tunnel ID、Runtime API Key、Platform 权限、ChatGPT Developer Mode、macOS/Linux/Windows 凭证保存方式见：
+
+[团队 OpenAI Secure MCP Tunnel 配置指南](OPENAI_TUNNEL_TEAM_SETUP_CN.md)
+
+然后再参考下面的本地 MCP 验证步骤。
 
 先测试 API：
 
@@ -741,7 +779,7 @@ uv run python smoke_test.py
 uv run mcp dev server.py
 ```
 
-完整 Tunnel / ChatGPT 配置见：
+详细 MCP tool 说明也可参考：
 
 [SETUP_TUTORIAL_CN.md](SETUP_TUTORIAL_CN.md)
 
@@ -1052,6 +1090,7 @@ actual-coder agents
 # 相关文档
 
 - [ActualCoder Quickstart](ACTUAL_CODER_QUICKSTART.md)
+- [团队 OpenAI Secure MCP Tunnel 配置指南](OPENAI_TUNNEL_TEAM_SETUP_CN.md)
 - [ChatGPT MCP 中文配置教程](SETUP_TUTORIAL_CN.md)
 - [Architecture](V0.2_WRITE_ACCESS_DESIGN.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
