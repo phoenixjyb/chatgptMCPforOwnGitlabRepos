@@ -60,6 +60,7 @@ class FakeManager:
             branch="chatgpt/test-abc123de",
             pushed=pushed,
             merge_request_url=mr_url,
+            remote_branch="chatgpt/test-abc123de" if pushed else None,
         )
         self.commits: list[str] = []
         self.pushes: list[str] = []
@@ -75,6 +76,8 @@ class FakeManager:
             "base_sha": self.state.base_sha,
             "branch": self.state.branch,
             "worktree_path": str(self.root / "worktree"),
+            "head": "head123",
+            "status_porcelain": " M src/example.py\n" if self._dirty else "",
             "dirty": self._dirty,
             "commits_ahead_of_base": self._ahead,
             "pushed": self.state.pushed,
@@ -87,6 +90,7 @@ class FakeManager:
         relative_path: str,
         *,
         ref: str | None = None,
+        refresh_remote: bool = True,
     ) -> dict[str, object]:
         return {
             "project": project,
@@ -197,6 +201,7 @@ class FinishTests(unittest.TestCase):
         self.assertEqual(plan["plan"]["commit_required"], True)
         self.assertEqual(plan["plan"]["push_action"], "push-mr")
         self.assertEqual(plan["plan"]["mr_title"], "fix: example")
+        self.assertIn("digest", plan["snapshot"])
         self.assertEqual(plan["validations"], [])
         self.assertTrue(
             any("No project validation commands" in item for item in plan["warnings"])
@@ -297,6 +302,36 @@ validation:
             plan["plan"]["existing_mr"],
             "https://gitlab.example.test/team/project/-/merge_requests/7",
         )
+
+    def test_execute_finish_refuses_changed_workspace_after_plan(self) -> None:
+        manager = FakeManager(root=self.root, dirty=True)
+        plan = build_finish_plan(
+            settings=self.settings,
+            manager=manager,  # type: ignore[arg-type]
+            runner=FakeRunner(),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+            commit_message="feat: snapshot",
+        )
+
+        manager._security_diff = """diff --git a/extra.txt b/extra.txt
+--- /dev/null
++++ b/extra.txt
+@@ -0,0 +1 @@
++changed after review
+"""
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "Workspace changed after the finish plan was reviewed",
+        ):
+            execute_finish(
+                manager=manager,  # type: ignore[arg-type]
+                workspace_id="abc123def456",
+                plan=plan,
+            )
+
+        self.assertEqual(manager.commits, [])
+        self.assertEqual(manager.pushes, [])
 
     def test_execute_finish_commits_then_creates_mr(self) -> None:
         manager = FakeManager(root=self.root, dirty=True)
