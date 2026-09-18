@@ -96,11 +96,6 @@ def build_finish_plan(
             *_BUILTIN_PROTECTED_PATHS,
         }
     )
-    protected_changes = [
-        path
-        for path in changed_paths
-        if _path_is_protected(path, protected_rules)
-    ]
 
     validations: list[dict[str, object]] = []
     validation_blocked = False
@@ -155,6 +150,11 @@ def build_finish_plan(
     diff_result = manager.diff(workspace_id)
     security_diff = manager.security_diff(workspace_id)
     secret_findings = scan_added_diff_for_secrets(security_diff)
+    protected_changes = [
+        path
+        for path in changed_paths
+        if _path_is_protected(path, protected_rules)
+    ]
 
     dirty = bool(status["dirty"])
     ahead = int(status["commits_ahead_of_base"])
