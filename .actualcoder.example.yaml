@@ -1,0 +1,48 @@
+# Example repository-local ActualCoder contract.
+#
+# Copy this file to .actualcoder.yaml in the target GitLab repository.
+# Repository-owned configuration is declarative and cannot grant itself new
+# executable permissions. Any executable below must already be approved by the
+# developer's GITLAB_ALLOWED_EXECUTABLES setting.
+
+version: 1
+
+project:
+  base_branch: main
+
+agents:
+  preferred:
+    - codex
+    - copilot
+
+validation:
+  commands:
+    - name: unit-tests
+      argv:
+        - uv
+        - run
+        - pytest
+        - -q
+      required: true
+      timeout_seconds: 300
+
+# These are policy inputs for later lifecycle commands. v0.3 alpha.2 parses and
+# validates them; enforcement is added by the start/finish chunks.
+protected_paths:
+  - .gitlab-ci.yml
+  - deploy/
+
+instructions:
+  - Prefer the repository's existing architecture and coding conventions.
+  - Keep changes scoped to the stated task.
+
+# Declares tools the project expects. This does NOT expand the developer's
+# executable allowlist; validation fails if a required executable is not already
+# approved locally.
+executables:
+  required:
+    - uv
+
+mr:
+  target_branch: main
+  title_prefix: ""
