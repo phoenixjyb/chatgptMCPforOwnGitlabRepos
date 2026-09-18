@@ -53,6 +53,8 @@ class WorkspaceManagerTests(unittest.TestCase):
             config_file=root / ".env",
             gitlab_base_url="https://gitlab.example.invalid",
             api_token="",
+            api_verify_ssl=True,
+            api_trust_env=False,
             git_token="",
             git_username="oauth2",
             git_trust_env=False,
