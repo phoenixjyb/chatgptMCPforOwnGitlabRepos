@@ -12,6 +12,12 @@ from .runner import CommandRunner
 from .workspace import WorkspaceManager
 
 
+SUPPORTED_CODING_AGENTS = {
+    "codex": "codex",
+    "copilot": "copilot",
+}
+
+
 def _print(data: Any) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
@@ -22,7 +28,12 @@ def _read_text_arg(path: str | None) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
-def _codex_prompt(status: dict[str, object], goal: str = "") -> str:
+def _agent_prompt(
+    status: dict[str, object],
+    goal: str = "",
+    *,
+    agent: str = "codex",
+) -> str:
     workspace_id = str(status["workspace_id"])
     project = str(status["project"])
     worktree = str(status["worktree_path"])
@@ -53,8 +64,15 @@ def _codex_prompt(status: dict[str, object], goal: str = "") -> str:
     else:
         next_step = "Inspect the repository, make the requested change, and run relevant tests."
 
+    if agent not in SUPPORTED_CODING_AGENTS:
+        raise ValueError(
+            f"Unsupported coding agent {agent!r}. "
+            f"Choose one of: {', '.join(sorted(SUPPORTED_CODING_AGENTS))}"
+        )
+
     requested_goal = goal.strip() or "<describe the coding goal here>"
     return (
+        f"You are the {agent} coding backend selected by CodingAgent.\n"
         "You are working in an isolated Git worktree managed by gitlab-agent.\n\n"
         f"Project: {project}\n"
         f"Base ref: {base_ref}\n"
@@ -76,14 +94,35 @@ def _codex_prompt(status: dict[str, object], goal: str = "") -> str:
     )
 
 
-def _handoff(manager: WorkspaceManager, workspace_id: str, goal: str = "") -> dict[str, object]:
+def _handoff(
+    manager: WorkspaceManager,
+    workspace_id: str,
+    goal: str = "",
+    *,
+    agent: str = "codex",
+) -> dict[str, object]:
+    if agent not in SUPPORTED_CODING_AGENTS:
+        raise ValueError(
+            f"Unsupported coding agent {agent!r}. "
+            f"Choose one of: {', '.join(sorted(SUPPORTED_CODING_AGENTS))}"
+        )
+
     status = manager.status(workspace_id)
-    return {
+    executable = SUPPORTED_CODING_AGENTS[agent]
+    result: dict[str, object] = {
         "workspace": status,
         "worktree_path": status["worktree_path"],
-        "codex_command": f"cd {status['worktree_path']} && codex",
-        "codex_prompt": _codex_prompt(status, goal),
+        "agent": agent,
+        "agent_command": f"cd {status['worktree_path']} && {executable}",
+        "agent_prompt": _agent_prompt(status, goal, agent=agent),
     }
+
+    # Alpha.1-alpha.3 compatibility for existing Codex integrations.
+    if agent == "codex":
+        result["codex_command"] = result["agent_command"]
+        result["codex_prompt"] = result["agent_prompt"]
+
+    return result
 
 
 def _safe_config(settings: AgentSettings) -> dict[str, object]:
@@ -106,13 +145,20 @@ def _safe_config(settings: AgentSettings) -> dict[str, object]:
     }
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
+    if prog == "codingagent":
+        description = (
+            "CodingAgent: agent-neutral coding orchestration for isolated GitLab "
+            "worktrees. Supports Codex and GitHub Copilot CLI backends."
+        )
+    else:
+        description = (
+            "Low-level GitLab worktree/build/commit/MR controller used by CodingAgent."
+        )
+
     parser = argparse.ArgumentParser(
-        prog="gitlab-agent",
-        description=(
-            "Local worktree/build/commit/MR engine for self-hosted GitLab. "
-            "Designed for Codex or direct terminal use; no OpenAI model API calls."
-        ),
+        prog=prog,
+        description=description,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -125,12 +171,18 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "task",
-        help="Create an isolated workspace and return a ready-to-use Codex handoff",
+        help="Create an isolated workspace and return a ready-to-use coding-agent handoff",
     )
     p.add_argument("project")
     p.add_argument("--base-ref", default=None)
     p.add_argument("--task", default="task")
     p.add_argument("--goal", default="")
+    p.add_argument(
+        "--agent",
+        choices=sorted(SUPPORTED_CODING_AGENTS),
+        default="codex",
+        help="Coding backend to hand off to (default: codex)",
+    )
 
     p = sub.add_parser(
         "checkout-branch",
@@ -140,6 +192,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("branch")
     p.add_argument("--base-ref", default=None)
     p.add_argument("--goal", default="")
+    p.add_argument(
+        "--agent",
+        choices=sorted(SUPPORTED_CODING_AGENTS),
+        default="codex",
+    )
 
     p = sub.add_parser(
         "checkout-mr",
@@ -148,6 +205,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("project")
     p.add_argument("iid", type=int)
     p.add_argument("--goal", default="")
+    p.add_argument(
+        "--agent",
+        choices=sorted(SUPPORTED_CODING_AGENTS),
+        default="codex",
+    )
 
     p = sub.add_parser("list", help="List managed workspaces")
 
@@ -156,10 +218,15 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "resume",
-        help="Return workspace status plus a Codex handoff prompt for an existing task",
+        help="Return workspace status plus a coding-agent handoff prompt for an existing task",
     )
     p.add_argument("workspace_id")
     p.add_argument("--goal", default="")
+    p.add_argument(
+        "--agent",
+        choices=sorted(SUPPORTED_CODING_AGENTS),
+        default="codex",
+    )
 
     p = sub.add_parser("path", help="Show the worktree path for a workspace")
     p.add_argument("workspace_id")
@@ -243,8 +310,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = _build_parser()
+def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
+    parser = _build_parser(prog=prog)
     args = parser.parse_args(argv)
 
     try:
@@ -267,14 +334,24 @@ def main(argv: list[str] | None = None) -> int:
                 base_ref=args.base_ref,
                 task_slug=args.task,
             )
-            result = _handoff(manager, str(created["workspace_id"]), args.goal)
+            result = _handoff(
+                manager,
+                str(created["workspace_id"]),
+                args.goal,
+                agent=args.agent,
+            )
         elif args.command == "checkout-branch":
             restored = manager.checkout_remote_branch(
                 args.project,
                 args.branch,
                 base_ref=args.base_ref,
             )
-            result = _handoff(manager, str(restored["workspace_id"]), args.goal)
+            result = _handoff(
+                manager,
+                str(restored["workspace_id"]),
+                args.goal,
+                agent=args.agent,
+            )
         elif args.command == "checkout-mr":
             mr = gitlab_api.merge_request(args.project, args.iid)
             source_project_id = mr.get("source_project_id")
@@ -302,6 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                 manager,
                 str(restored["workspace_id"]),
                 args.goal or f"Resume MR !{args.iid}: {mr.get('title', '')}",
+                agent=args.agent,
             )
             result = {
                 "merge_request": {
@@ -319,7 +397,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "status":
             result = manager.status(args.workspace_id)
         elif args.command == "resume":
-            result = _handoff(manager, args.workspace_id, args.goal)
+            result = _handoff(
+                manager,
+                args.workspace_id,
+                args.goal,
+                agent=args.agent,
+            )
         elif args.command == "path":
             path = str(manager.status(args.workspace_id)["worktree_path"])
             if args.plain:
