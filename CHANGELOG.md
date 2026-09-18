@@ -1,6 +1,24 @@
 # Changelog
 
-## 0.3.0-alpha.4 - Unreleased
+## 0.3.0-alpha.5 - Unreleased
+
+- Add `actual-coder finish WORKSPACE` with a separate planning and execution phase.
+- Add `--dry-run` to run validation/security/review planning with zero Git writes.
+- Load the project contract from the workspace base SHA so finish policy is stable even if the branch changes the contract itself.
+- Run configured validation commands through the constrained command runner.
+- Add changed-path and complete base-to-working-tree diff inspection helpers.
+- Scan added diff lines for high-signal credentials/secrets before remote writes.
+- Treat `.actualcoder.yaml` as a built-in protected path and enforce project-declared protected paths.
+- Require explicit `--allow-protected` and `--allow-secret-match` overrides for those independent safety gates.
+- Require a commit message when dirty changes need committing.
+- Derive first-MR title from the commit/latest subject and apply project MR conventions.
+- Distinguish first push (`push-mr`) from existing MR update (`push-update`).
+- Refuse to guess/create an MR for a branch previously pushed without a recorded MR.
+- Require interactive human confirmation before writes unless `--yes` is explicitly supplied.
+- Keep `--yes` unable to bypass validation/protected-path/secret gates.
+- Add finish planning/execution regression tests.
+
+## 0.3.0-alpha.4
 
 - Add high-level `actual-coder start PROJECT --task ... --goal ...` lifecycle orchestration.
 - Run ActualCoder doctor as a preflight gate before creating a start workspace.
