@@ -1,3 +1,3 @@
 """Local coding/worktree engine for self-hosted GitLab workflows."""
 
-__version__ = "0.3.0a3"
+__version__ = "0.3.0a4"
