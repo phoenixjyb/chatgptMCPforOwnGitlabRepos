@@ -1,6 +1,6 @@
 # Security notes
 
-This project bridges ChatGPT/Codex to private source code. Treat the MCP host, local worktrees, and credentials as security-sensitive.
+This project bridges ChatGPT and local coding backends (through ActualCoder) to private source code. Treat the MCP host, local worktrees, coding-agent sessions, and credentials as security-sensitive.
 
 ## Never commit
 
@@ -42,11 +42,29 @@ Run untrusted repositories in a container/VM or on a disposable host.
 
 Repository files, MR descriptions, issues, build output, and CI logs are untrusted content. They can contain instructions intended to manipulate an AI system.
 
-Keep the ChatGPT MCP read-only on personal Pro, review Codex actions, preserve project/branch allowlists, and avoid exposing unrelated secrets to build/test processes.
+Keep the ChatGPT MCP read-only on personal Pro, review ActualCoder backend actions, preserve project/branch allowlists, and avoid exposing unrelated secrets to build/test processes.
 
 ## HTTP GitLab
 
 HTTP can work on a trusted private network, but it does not encrypt the MCP/CLI host-to-GitLab hop. Tokens and repository contents can be observed by an attacker on that network segment. Prefer HTTPS when possible.
+
+## Repository secret scanning
+
+Before pushing or sharing changes, run:
+
+```bash
+uv run python scripts/check_repo_secrets.py
+```
+
+For a release/security audit, scan the full available Git history:
+
+```bash
+uv run python scripts/check_repo_secrets.py --history
+```
+
+CI performs the history scan with a full Git checkout. The scanner checks high-signal token formats, private-key blocks, credential-bearing URLs, real-looking Secure MCP tunnel IDs, and developer-specific absolute home paths.
+
+This is defense in depth, not a substitute for credential rotation. If a real secret is ever committed, **revoke/rotate it first**, then rewrite/remove it from repository history before distributing the repository.
 
 ## Zero OpenAI model API usage
 
