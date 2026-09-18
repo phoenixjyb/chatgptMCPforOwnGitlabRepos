@@ -28,6 +28,7 @@ jobs:
 
       - name: Verify packaged CLIs
         run: |
+          uv run actual-coder --help
           uv run codingagent --help
           uv run gitlab-agent --help
 
