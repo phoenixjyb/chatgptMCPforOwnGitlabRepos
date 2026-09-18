@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0-alpha.5 - Unreleased
+## 0.2.0 - 2026-09-18
 
 - Rename the user-facing orchestration layer from **CodingAgent** to **ActualCoder**.
 - Add the primary `actual-coder` console command.
