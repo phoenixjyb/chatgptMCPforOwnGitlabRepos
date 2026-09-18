@@ -65,6 +65,7 @@ class AgentSettings:
     api_token: str
     git_token: str
     git_username: str
+    git_trust_env: bool
     allowed_projects: set[str]
     require_write_allowlist: bool
     workspace_root: Path
@@ -107,6 +108,7 @@ class AgentSettings:
             api_token=api_token,
             git_token=git_token,
             git_username=os.getenv("GITLAB_GIT_USERNAME", "oauth2").strip() or "oauth2",
+            git_trust_env=env_bool("GITLAB_GIT_TRUST_ENV", False),
             allowed_projects=csv_set("GITLAB_ALLOWED_PROJECTS"),
             require_write_allowlist=env_bool("GITLAB_REQUIRE_WRITE_ALLOWLIST", True),
             workspace_root=root,
