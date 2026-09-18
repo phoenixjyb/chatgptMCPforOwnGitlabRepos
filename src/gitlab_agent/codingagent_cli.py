@@ -4,7 +4,7 @@ from .cli import main as _gitlab_main
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point for the agent-neutral CodingAgent CLI."""
+    """Compatibility alias for the renamed ActualCoder CLI."""
     return _gitlab_main(argv, prog="codingagent")
 
 
