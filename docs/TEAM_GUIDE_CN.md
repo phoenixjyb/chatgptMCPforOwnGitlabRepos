@@ -496,6 +496,25 @@ actual-coder resume "$WS" \
   --goal "Continue the current task"
 ```
 
+也可以让 ActualCoder 根据项目偏好与本机安装情况选择：
+
+```bash
+actual-coder resume "$WS" \
+  --agent auto \
+  --goal "Continue the current task"
+```
+
+`auto` 的规则：
+
+1. 如果远端 `.actualcoder.yaml` 有 `agents.preferred`，按该顺序尝试；
+2. 跳过当前 ActualCoder 不支持的 backend；
+3. 跳过本机没有安装的 backend；
+4. 如果项目没有偏好，默认尝试 `codex → copilot`；
+5. 如果项目偏好的 backend 都没安装，则使用默认 fallback；
+6. 两个都没安装则直接报错；
+7. 选择过程不会启动模型，不消耗额度；
+8. JSON 会输出 `agent_requested`、最终 `agent` 以及 `agent_selection.reason`。
+
 Git 分支、worktree、MR 都不会因为更换 backend 而变化。
 
 ---
@@ -519,6 +538,16 @@ actual-coder task team/project-a \
 ```bash
 actual-coder task team/project-a \
   --agent codex \
+  --base-ref main \
+  --task fix-timeout \
+  --goal "Fix the request timeout bug and add regression coverage"
+```
+
+或者：
+
+```bash
+actual-coder task team/project-a \
+  --agent auto \
   --base-ref main \
   --task fix-timeout \
   --goal "Fix the request timeout bug and add regression coverage"
