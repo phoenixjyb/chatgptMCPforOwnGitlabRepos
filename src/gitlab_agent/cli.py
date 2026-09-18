@@ -361,6 +361,7 @@ def _prepare_start(
         project,
         base_ref=effective_base,
         task_slug=task_slug,
+        refresh_remote=False,
     )
     handoff = _handoff(
         manager,
