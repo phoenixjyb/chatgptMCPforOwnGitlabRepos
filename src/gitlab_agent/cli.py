@@ -220,6 +220,11 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
         help="Ref containing .actualcoder.yaml (default: configured base ref)",
     )
     p.add_argument(
+        "--file",
+        default=None,
+        help="Validate a local candidate YAML file instead of reading the remote project",
+    )
+    p.add_argument(
         "--validate",
         action="store_true",
         help="Exit non-zero when schema/policy validation fails",
@@ -391,22 +396,39 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
         elif args.command == "agents":
             result = _available_agents()
         elif args.command == "project-config":
-            remote = manager.read_remote_text_file(
-                args.project,
-                PROJECT_CONFIG_FILENAME,
-                ref=args.ref,
-            )
-            parsed = parse_project_config(
-                remote["content"] if remote["exists"] else None,
-                settings=settings,
-                source_ref=str(remote["ref"]),
-                source_path=PROJECT_CONFIG_FILENAME,
-            )
-            result = {
-                "project": args.project,
-                "commit_sha": remote["commit_sha"],
-                **parsed.to_dict(),
-            }
+            if args.file is not None:
+                if args.ref is not None:
+                    raise ValueError("--file and --ref cannot be used together")
+                local_path = Path(args.file).expanduser().resolve()
+                local_text = local_path.read_text(encoding="utf-8")
+                parsed = parse_project_config(
+                    local_text,
+                    settings=settings,
+                    source_ref="local",
+                    source_path=str(local_path),
+                )
+                result = {
+                    "project": args.project,
+                    "commit_sha": None,
+                    **parsed.to_dict(),
+                }
+            else:
+                remote = manager.read_remote_text_file(
+                    args.project,
+                    PROJECT_CONFIG_FILENAME,
+                    ref=args.ref,
+                )
+                parsed = parse_project_config(
+                    remote["content"] if remote["exists"] else None,
+                    settings=settings,
+                    source_ref=str(remote["ref"]),
+                    source_path=PROJECT_CONFIG_FILENAME,
+                )
+                result = {
+                    "project": args.project,
+                    "commit_sha": remote["commit_sha"],
+                    **parsed.to_dict(),
+                }
             if args.validate and not parsed.valid:
                 _print(result)
                 return 1
