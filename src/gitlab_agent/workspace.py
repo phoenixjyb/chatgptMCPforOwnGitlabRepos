@@ -419,6 +419,7 @@ class WorkspaceManager:
         *,
         base_ref: str | None = None,
         task_slug: str = "task",
+        refresh_remote: bool = True,
     ) -> dict[str, object]:
         project = project.strip().strip("/")
         if not project or "/" not in project:
@@ -427,7 +428,20 @@ class WorkspaceManager:
             )
 
         self._progress(f"preparing workspace for {project}")
-        repo_path = self._ensure_cached_repo(project)
+        if refresh_remote:
+            repo_path = self._ensure_cached_repo(project)
+        else:
+            self.settings.assert_project_allowed_for_workspace(project)
+            repo_path = self._repo_path(project)
+            if not repo_path.is_dir():
+                raise RuntimeError(
+                    f"Repository cache is not prepared for {project!r}; "
+                    "refresh_remote=False requires a prior fetch in the same workflow"
+                )
+            self._progress(
+                f"reusing already-fetched repository cache for {project}: {repo_path}"
+            )
+
         effective_base = (base_ref or self.settings.default_base_ref).strip()
         self._progress(f"resolving base ref {effective_base} ...")
         base_sha = self._resolve_base_sha(repo_path, effective_base)
