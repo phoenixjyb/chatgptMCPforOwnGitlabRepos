@@ -1,0 +1,661 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import tempfile
+import uuid
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable, Iterator
+from urllib.parse import quote
+
+from .config import AgentSettings
+
+
+_MR_URL_RE = re.compile(r"https?://[^\s]+/-/merge_requests/\d+")
+_SAFE_SLUG_RE = re.compile(r"[^a-z0-9._-]+")
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _clip(text: str, max_bytes: int) -> tuple[str, bool, int]:
+    raw = text.encode("utf-8", errors="replace")
+    original = len(raw)
+    if original <= max_bytes:
+        return text, False, original
+    clipped = raw[:max_bytes].decode("utf-8", errors="ignore")
+    return clipped, True, original
+
+
+def _slug(text: str) -> str:
+    value = text.strip().lower().replace(" ", "-")
+    value = _SAFE_SLUG_RE.sub("-", value).strip("-._")
+    return value[:48] or "task"
+
+
+@dataclass
+class WorkspaceState:
+    workspace_id: str
+    project: str
+    repo_path: str
+    worktree_path: str
+    base_ref: str
+    base_sha: str
+    branch: str
+    created_at: str
+    pushed: bool = False
+    last_commit: str | None = None
+    remote_branch: str | None = None
+    merge_request_url: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> "WorkspaceState":
+        return cls(**data)  # type: ignore[arg-type]
+
+
+class WorkspaceManager:
+    """Owns cached Git repositories and isolated task worktrees."""
+
+    def __init__(
+        self,
+        settings: AgentSettings,
+        *,
+        url_resolver: Callable[[str], str] | None = None,
+    ) -> None:
+        self.settings = settings
+        self.root = settings.workspace_root.resolve()
+        self.repos_dir = self.root / "repos"
+        self.worktrees_dir = self.root / "worktrees"
+        self.state_dir = self.root / "state"
+        self.home_dir = self.root / "runner-home"
+        for path in (
+            self.repos_dir,
+            self.worktrees_dir,
+            self.state_dir,
+            self.home_dir,
+        ):
+            path.mkdir(parents=True, exist_ok=True)
+        self._url_resolver = url_resolver
+
+    # ------------------------------------------------------------------
+    # State and path helpers
+    # ------------------------------------------------------------------
+    def _repo_key(self, project: str) -> str:
+        digest = hashlib.sha256(project.encode("utf-8")).hexdigest()[:12]
+        readable = _slug(project.replace("/", "-"))[:36]
+        return f"{readable}-{digest}"
+
+    def _repo_path(self, project: str) -> Path:
+        return self.repos_dir / f"{self._repo_key(project)}.git"
+
+    def _state_path(self, workspace_id: str) -> Path:
+        if not re.fullmatch(r"[a-f0-9]{12}", workspace_id):
+            raise ValueError("Invalid workspace_id")
+        return self.state_dir / f"{workspace_id}.json"
+
+    def _save_state(self, state: WorkspaceState) -> None:
+        path = self._state_path(state.workspace_id)
+        temp = path.with_suffix(".json.tmp")
+        temp.write_text(
+            json.dumps(asdict(state), indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        temp.replace(path)
+
+    def get_state(self, workspace_id: str) -> WorkspaceState:
+        path = self._state_path(workspace_id)
+        if not path.is_file():
+            raise RuntimeError(f"Unknown workspace_id: {workspace_id}")
+        return WorkspaceState.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    def list_states(self) -> list[WorkspaceState]:
+        states: list[WorkspaceState] = []
+        for path in sorted(self.state_dir.glob("*.json")):
+            try:
+                states.append(
+                    WorkspaceState.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                )
+            except Exception:
+                continue
+        return states
+
+    def _worktree(self, state: WorkspaceState) -> Path:
+        path = Path(state.worktree_path).resolve()
+        expected_root = self.worktrees_dir.resolve()
+        try:
+            path.relative_to(expected_root)
+        except ValueError as exc:
+            raise RuntimeError("Workspace path escaped configured worktree root") from exc
+        if not path.is_dir():
+            raise RuntimeError(f"Workspace directory no longer exists: {path}")
+        return path
+
+    def resolve_workspace_path(self, workspace_id: str, relative_path: str) -> Path:
+        state = self.get_state(workspace_id)
+        root = self._worktree(state)
+        if not relative_path or relative_path in {".", "./"}:
+            return root
+        rel = Path(relative_path)
+        if rel.is_absolute():
+            raise ValueError("Workspace paths must be relative")
+        candidate = (root / rel).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("Path escapes workspace root") from exc
+        return candidate
+
+    # ------------------------------------------------------------------
+    # Git plumbing
+    # ------------------------------------------------------------------
+    def clone_url(self, project: str) -> str:
+        if self._url_resolver is not None:
+            return self._url_resolver(project)
+        encoded = quote(project.strip("/"), safe="/-._~")
+        return f"{self.settings.gitlab_base_url}/{encoded}.git"
+
+    @contextmanager
+    def _git_auth_env(self, *, require_token: bool) -> Iterator[dict[str, str]]:
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+
+        token = self.settings.git_token
+        if require_token and not token:
+            raise RuntimeError(
+                "No Git credential is configured. Set GITLAB_GIT_TOKEN "
+                "(recommended for v0.2 writes) or GITLAB_TOKEN."
+            )
+        if not token:
+            yield env
+            return
+
+        fd, script_name = tempfile.mkstemp(prefix="gitlab-agent-askpass-", text=True)
+        script = Path(script_name)
+        try:
+            os.write(
+                fd,
+                (
+                    "#!/bin/sh\n"
+                    "case \"$1\" in\n"
+                    "  *Username*) printf '%s\\n' \"$GITLAB_AGENT_GIT_USERNAME\" ;;\n"
+                    "  *)          printf '%s\\n' \"$GITLAB_AGENT_GIT_TOKEN\" ;;\n"
+                    "esac\n"
+                ).encode("utf-8"),
+            )
+            os.close(fd)
+            script.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+            env["GIT_ASKPASS"] = str(script)
+            env["GITLAB_AGENT_GIT_USERNAME"] = self.settings.git_username
+            env["GITLAB_AGENT_GIT_TOKEN"] = token
+            yield env
+        finally:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            script.unlink(missing_ok=True)
+
+    def _run_git(
+        self,
+        args: list[str],
+        *,
+        cwd: Path | None = None,
+        input_text: str | None = None,
+        auth: bool = False,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        with self._git_auth_env(require_token=auth) as env:
+            if self.settings.git_author_name:
+                env["GIT_AUTHOR_NAME"] = self.settings.git_author_name
+                env["GIT_COMMITTER_NAME"] = self.settings.git_author_name
+            if self.settings.git_author_email:
+                env["GIT_AUTHOR_EMAIL"] = self.settings.git_author_email
+                env["GIT_COMMITTER_EMAIL"] = self.settings.git_author_email
+
+            proc = subprocess.run(
+                ["git", *args],
+                cwd=cwd,
+                input=input_text,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                timeout=max(30, self.settings.command_timeout_seconds),
+                check=False,
+            )
+
+        if check and proc.returncode != 0:
+            stdout, _, _ = _clip(proc.stdout, 12000)
+            stderr, _, _ = _clip(proc.stderr, 12000)
+            raise RuntimeError(
+                "git command failed: "
+                + " ".join(["git", *args[:6]])
+                + f"\nexit={proc.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+            )
+        return proc
+
+    def _remote_needs_auth(self, remote_url: str) -> bool:
+        return remote_url.startswith(("http://", "https://"))
+
+    def _ensure_cached_repo(self, project: str) -> Path:
+        self.settings.assert_project_allowed_for_workspace(project)
+        repo_path = self._repo_path(project)
+        remote_url = self.clone_url(project)
+        auth = self._remote_needs_auth(remote_url)
+
+        if not repo_path.exists():
+            self._run_git(
+                ["clone", "--bare", remote_url, str(repo_path)],
+                auth=auth,
+            )
+            self._run_git(
+                [
+                    "--git-dir",
+                    str(repo_path),
+                    "config",
+                    "remote.origin.fetch",
+                    "+refs/heads/*:refs/remotes/origin/*",
+                ]
+            )
+        else:
+            current_remote = self._run_git(
+                ["--git-dir", str(repo_path), "remote", "get-url", "origin"]
+            ).stdout.strip()
+            if current_remote != remote_url:
+                raise RuntimeError(
+                    f"Cached repository remote mismatch for {project!r}: "
+                    f"{current_remote!r} != {remote_url!r}"
+                )
+
+        self._run_git(
+            ["--git-dir", str(repo_path), "fetch", "--prune", "--tags", "origin"],
+            auth=auth,
+        )
+        return repo_path
+
+    def _resolve_base_sha(self, repo_path: Path, base_ref: str) -> str:
+        candidates = [
+            f"refs/remotes/origin/{base_ref}",
+            f"refs/tags/{base_ref}",
+            base_ref,
+        ]
+        for candidate in candidates:
+            proc = self._run_git(
+                [
+                    "--git-dir",
+                    str(repo_path),
+                    "rev-parse",
+                    "--verify",
+                    f"{candidate}^{{commit}}",
+                ],
+                check=False,
+            )
+            if proc.returncode == 0:
+                return proc.stdout.strip()
+        raise RuntimeError(f"Could not resolve base ref {base_ref!r}")
+
+    # ------------------------------------------------------------------
+    # Workspace lifecycle
+    # ------------------------------------------------------------------
+    def create_workspace(
+        self,
+        project: str,
+        *,
+        base_ref: str | None = None,
+        task_slug: str = "task",
+    ) -> dict[str, object]:
+        project = project.strip().strip("/")
+        if not project or "/" not in project:
+            raise ValueError(
+                "v0.2 workspaces require GitLab path_with_namespace, e.g. team/project"
+            )
+
+        repo_path = self._ensure_cached_repo(project)
+        effective_base = (base_ref or self.settings.default_base_ref).strip()
+        base_sha = self._resolve_base_sha(repo_path, effective_base)
+
+        workspace_id = uuid.uuid4().hex[:12]
+        branch = f"{self.settings.branch_prefix}{_slug(task_slug)}-{workspace_id[:8]}"
+        worktree_path = self.worktrees_dir / workspace_id
+
+        self._run_git(
+            [
+                "--git-dir",
+                str(repo_path),
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                str(worktree_path),
+                base_sha,
+            ]
+        )
+
+        state = WorkspaceState(
+            workspace_id=workspace_id,
+            project=project,
+            repo_path=str(repo_path),
+            worktree_path=str(worktree_path),
+            base_ref=effective_base,
+            base_sha=base_sha,
+            branch=branch,
+            created_at=_utc_now(),
+            last_commit=base_sha,
+        )
+        self._save_state(state)
+        return self.status(workspace_id)
+
+    def status(self, workspace_id: str) -> dict[str, object]:
+        state = self.get_state(workspace_id)
+        worktree = self._worktree(state)
+        porcelain = self._run_git(
+            ["status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=worktree,
+        ).stdout
+        head = self._run_git(["rev-parse", "HEAD"], cwd=worktree).stdout.strip()
+        branch = self._run_git(
+            ["rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=worktree,
+        ).stdout.strip()
+        ahead = int(
+            self._run_git(
+                ["rev-list", "--count", f"{state.base_sha}..HEAD"],
+                cwd=worktree,
+            ).stdout.strip()
+            or "0"
+        )
+        return {
+            **asdict(state),
+            "head": head,
+            "branch": branch,
+            "dirty": bool(porcelain.strip()),
+            "status_porcelain": porcelain,
+            "commits_ahead_of_base": ahead,
+        }
+
+    def list_files(
+        self,
+        workspace_id: str,
+        path: str = ".",
+        *,
+        recursive: bool = False,
+        max_entries: int = 500,
+    ) -> dict[str, object]:
+        root = self.resolve_workspace_path(workspace_id, path)
+        if not root.exists():
+            raise FileNotFoundError(path)
+
+        items: list[dict[str, object]] = []
+        if root.is_file():
+            items.append(
+                {
+                    "path": str(root.relative_to(self._worktree(self.get_state(workspace_id)))),
+                    "type": "file",
+                    "size": root.stat().st_size,
+                }
+            )
+        else:
+            iterator = root.rglob("*") if recursive else root.iterdir()
+            workspace_root = self._worktree(self.get_state(workspace_id))
+            for child in iterator:
+                if len(items) >= max_entries:
+                    break
+                try:
+                    rel = child.relative_to(workspace_root)
+                except ValueError:
+                    continue
+                items.append(
+                    {
+                        "path": str(rel),
+                        "type": "dir" if child.is_dir() else "file",
+                        "size": None if child.is_dir() else child.stat().st_size,
+                    }
+                )
+        return {
+            "workspace_id": workspace_id,
+            "path": path,
+            "recursive": recursive,
+            "truncated": len(items) >= max_entries,
+            "items": items,
+        }
+
+    def read_file(self, workspace_id: str, path: str) -> dict[str, object]:
+        target = self.resolve_workspace_path(workspace_id, path)
+        if not target.is_file():
+            raise FileNotFoundError(path)
+        raw = target.read_bytes()
+        if len(raw) > self.settings.max_file_bytes:
+            raise RuntimeError(
+                f"File is {len(raw)} bytes; limit is {self.settings.max_file_bytes}"
+            )
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise RuntimeError("Only UTF-8 text files are supported") from exc
+        return {
+            "workspace_id": workspace_id,
+            "path": path,
+            "size": len(raw),
+            "content": text,
+        }
+
+    def write_file(self, workspace_id: str, path: str, content: str) -> dict[str, object]:
+        raw = content.encode("utf-8")
+        if len(raw) > self.settings.max_file_bytes:
+            raise RuntimeError(
+                f"Write is {len(raw)} bytes; limit is {self.settings.max_file_bytes}"
+            )
+        target = self.resolve_workspace_path(workspace_id, path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return {
+            "workspace_id": workspace_id,
+            "path": path,
+            "bytes_written": len(raw),
+        }
+
+    def apply_patch(self, workspace_id: str, patch: str) -> dict[str, object]:
+        if len(patch.encode("utf-8")) > self.settings.max_file_bytes * 2:
+            raise RuntimeError("Patch exceeds configured size limit")
+        worktree = self._worktree(self.get_state(workspace_id))
+        self._run_git(
+            ["apply", "--whitespace=nowarn", "-"],
+            cwd=worktree,
+            input_text=patch,
+        )
+        return self.diff(workspace_id)
+
+    def diff(self, workspace_id: str) -> dict[str, object]:
+        state = self.get_state(workspace_id)
+        worktree = self._worktree(state)
+        working = self._run_git(
+            ["diff", "--no-ext-diff", "--", "."],
+            cwd=worktree,
+        ).stdout
+        staged = self._run_git(
+            ["diff", "--cached", "--no-ext-diff", "--", "."],
+            cwd=worktree,
+        ).stdout
+        committed = self._run_git(
+            ["diff", "--no-ext-diff", f"{state.base_sha}..HEAD", "--", "."],
+            cwd=worktree,
+        ).stdout
+
+        budget = self.settings.max_output_bytes
+        combined = (
+            "### COMMITTED SINCE BASE\n"
+            + committed
+            + "\n### STAGED\n"
+            + staged
+            + "\n### UNSTAGED\n"
+            + working
+        )
+        clipped, truncated, original_bytes = _clip(combined, budget)
+        return {
+            "workspace_id": workspace_id,
+            "base_sha": state.base_sha,
+            "truncated": truncated,
+            "original_bytes": original_bytes,
+            "diff": clipped,
+        }
+
+    def commit(self, workspace_id: str, message: str) -> dict[str, object]:
+        if not message.strip():
+            raise ValueError("Commit message must not be empty")
+        state = self.get_state(workspace_id)
+        worktree = self._worktree(state)
+        self._run_git(["add", "-A"], cwd=worktree)
+        staged_check = self._run_git(["diff", "--cached", "--quiet"], cwd=worktree, check=False)
+        if staged_check.returncode == 0:
+            raise RuntimeError("Nothing to commit")
+        self._run_git(["commit", "-m", message.strip()], cwd=worktree)
+        head = self._run_git(["rev-parse", "HEAD"], cwd=worktree).stdout.strip()
+        state.last_commit = head
+        self._save_state(state)
+        return self.status(workspace_id)
+
+    def _assert_pushable(self, state: WorkspaceState) -> tuple[Path, int]:
+        worktree = self._worktree(state)
+        if not state.branch.startswith(self.settings.branch_prefix):
+            raise RuntimeError("Refusing to push a branch outside configured branch prefix")
+        if state.branch == state.base_ref:
+            raise RuntimeError("Refusing to push directly to the base branch")
+
+        status = self.status(state.workspace_id)
+        if status["dirty"]:
+            raise RuntimeError("Workspace has uncommitted changes; commit before pushing")
+        ahead = int(status["commits_ahead_of_base"])
+        if ahead <= 0:
+            raise RuntimeError("Workspace has no commits ahead of its base")
+        return worktree, ahead
+
+    def push(self, workspace_id: str) -> dict[str, object]:
+        state = self.get_state(workspace_id)
+        worktree, _ = self._assert_pushable(state)
+        remote_url = self._run_git(
+            ["remote", "get-url", "origin"],
+            cwd=worktree,
+        ).stdout.strip()
+        auth = self._remote_needs_auth(remote_url)
+
+        proc = self._run_git(
+            ["push", "--set-upstream", "origin", state.branch],
+            cwd=worktree,
+            auth=auth,
+        )
+        state.pushed = True
+        state.remote_branch = state.branch
+        state.last_commit = self._run_git(["rev-parse", "HEAD"], cwd=worktree).stdout.strip()
+        self._save_state(state)
+        return {
+            "workspace": self.status(workspace_id),
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+        }
+
+    def push_and_create_mr(
+        self,
+        workspace_id: str,
+        *,
+        target_branch: str,
+        title: str,
+        description: str = "",
+    ) -> dict[str, object]:
+        state = self.get_state(workspace_id)
+        if state.pushed:
+            raise RuntimeError(
+                "This workspace branch is already marked as pushed. "
+                "For the no-broad-API v0.2 flow, create the MR on the first push "
+                "with push-mr rather than calling push first."
+            )
+        worktree, _ = self._assert_pushable(state)
+        if not target_branch.strip():
+            raise ValueError("target_branch must not be empty")
+        if not title.strip():
+            raise ValueError("MR title must not be empty")
+
+        remote_url = self._run_git(
+            ["remote", "get-url", "origin"],
+            cwd=worktree,
+        ).stdout.strip()
+        auth = self._remote_needs_auth(remote_url)
+
+        # Git push options cannot contain LF/NUL. Keep the initial MR description
+        # intentionally simple; richer editing can be added later with a narrower API permission.
+        safe_title = " ".join(title.replace("\x00", "").splitlines()).strip()
+        safe_description = " ".join(description.replace("\x00", "").splitlines()).strip()
+        if len(safe_title) > 240:
+            raise ValueError("MR title is too long")
+        if len(safe_description) > 4000:
+            raise ValueError("MR description is too long")
+
+        args = [
+            "push",
+            "--set-upstream",
+            "-o",
+            "merge_request.create",
+            "-o",
+            f"merge_request.target={target_branch.strip()}",
+            "-o",
+            f"merge_request.title={safe_title}",
+        ]
+        if safe_description:
+            args.extend(["-o", f"merge_request.description={safe_description}"])
+        args.extend(["origin", state.branch])
+
+        proc = self._run_git(args, cwd=worktree, auth=auth)
+        combined = proc.stdout + "\n" + proc.stderr
+        match = _MR_URL_RE.search(combined)
+
+        state.pushed = True
+        state.remote_branch = state.branch
+        state.last_commit = self._run_git(["rev-parse", "HEAD"], cwd=worktree).stdout.strip()
+        state.merge_request_url = match.group(0).rstrip(".,)") if match else None
+        self._save_state(state)
+        return {
+            "workspace": self.status(workspace_id),
+            "merge_request_url": state.merge_request_url,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+        }
+
+    def cleanup(self, workspace_id: str, *, force: bool = False) -> dict[str, object]:
+        state = self.get_state(workspace_id)
+        status = self.status(workspace_id)
+        if not force:
+            if status["dirty"]:
+                raise RuntimeError("Workspace has uncommitted changes; use force to discard")
+            if int(status["commits_ahead_of_base"]) > 0 and not state.pushed:
+                raise RuntimeError("Workspace has unpushed commits; use force to discard")
+
+        repo_path = Path(state.repo_path)
+        worktree = Path(state.worktree_path)
+        if worktree.exists():
+            args = [
+                "--git-dir",
+                str(repo_path),
+                "worktree",
+                "remove",
+            ]
+            if force:
+                args.append("--force")
+            args.append(str(worktree))
+            self._run_git(args)
+
+        self._run_git(
+            ["--git-dir", str(repo_path), "branch", "-D", state.branch],
+            check=False,
+        )
+        self._state_path(workspace_id).unlink(missing_ok=True)
+        if worktree.exists():
+            shutil.rmtree(worktree, ignore_errors=True)
+        return {"workspace_id": workspace_id, "removed": True}
