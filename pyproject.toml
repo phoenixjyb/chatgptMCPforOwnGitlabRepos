@@ -1,7 +1,7 @@
 [project]
 name = "chatgpt-selfhosted-gitlab-mcp"
-version = "0.2.0a4"
-description = "Read-only ChatGPT MCP plus CodingAgent, an agent-neutral GitLab coding workspace controller"
+version = "0.2.0a5"
+description = "Read-only ChatGPT MCP plus ActualCoder, an agent-neutral GitLab coding workspace controller"
 requires-python = ">=3.10"
 dependencies = [
   "mcp[cli]>=2,<3",
@@ -10,6 +10,7 @@ dependencies = [
 
 [project.scripts]
 gitlab-agent = "gitlab_agent.cli:main"
+actual-coder = "gitlab_agent.actual_coder_cli:main"
 codingagent = "gitlab_agent.codingagent_cli:main"
 
 [build-system]
