@@ -164,7 +164,40 @@ The contract can declare base branch, preferred backends, validation argv, prote
 
 See [`.actualcoder.example.yaml`](.actualcoder.example.yaml).
 
-Start a coding task:
+### High-level start workflow
+
+The v0.3 high-level entry point is:
+
+```bash
+actual-coder start team/project-a \
+  --task fix-timeout \
+  --goal "Fix the timeout bug and add regression coverage"
+```
+
+`start` defaults to `--agent auto` and performs:
+
+```text
+doctor preflight
+→ read/validate .actualcoder.yaml
+→ resolve effective base branch
+→ select an installed backend
+→ create isolated worktree
+→ inject project instructions/protected paths/validation context
+→ launch the selected coding CLI interactively
+```
+
+To validate everything without invoking a coding model:
+
+```bash
+actual-coder start team/project-a \
+  --task inspect \
+  --goal "Inspect the workspace only" \
+  --no-launch
+```
+
+The launcher does not enable broad automatic-approval modes. Codex receives the generated handoff as its initial interactive prompt; Copilot is launched in interactive mode with the generated initial prompt.
+
+The lower-level/compatibility task command remains available:
 
 ```bash
 actual-coder task team/project-a \
@@ -349,10 +382,11 @@ gitlab-agent
 - `v0.1.0`: read-only ChatGPT MCP release.
 - `main`: recommended team-consumption branch.
 - `v0.3.0-dev`: active development branch for lifecycle/productivity features.
-- Current development package version: `0.3.0a3`.
+- Current development package version: `0.3.0a4`.
 - v0.3 alpha.1 adds `actual-coder doctor`.
 - v0.3 alpha.2 adds the repository-local `.actualcoder.yaml` project contract and `project-config --validate`.
 - v0.3 alpha.3 adds project-aware `--agent auto` selection with explicit selection metadata.
+- v0.3 alpha.4 adds the high-level `actual-coder start` lifecycle with doctor/project-config/auto-selection integration and optional interactive backend launch.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
