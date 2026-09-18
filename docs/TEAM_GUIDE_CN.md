@@ -313,8 +313,46 @@ Windows 建议再用 ACL 将 `.env` 限制为当前用户访问；完整命令�
 actual-coder --help
 actual-coder config
 actual-coder agents
+actual-coder doctor
 gitlab-agent --help
 ```
+
+推荐每位成员首次安装后先运行：
+
+```bash
+actual-coder doctor
+```
+
+如果当前不在公司网络 / VPN，可先：
+
+```bash
+actual-coder doctor --offline
+```
+
+`doctor` 不会修改 GitLab，也不会调用 Codex / Copilot 模型；它只做环境、配置和连通性诊断。
+
+状态含义：
+
+```text
+pass  = 正常
+warn  = 可以继续，但建议处理
+fail  = 核心条件不满足；doctor 返回非 0
+skip  = 可选项未配置或显式跳过
+```
+
+重点检查项包括：
+
+- Python / Git / uv；
+- Codex / Copilot 是否至少存在一个；
+- tunnel-client（可选）；
+- 配置文件与权限；
+- GitLab URL / Token；
+- 项目 allowlist；
+- proxy 策略；
+- workspace root 是否可写；
+- 磁盘空间；
+- stale / malformed workspace state；
+- GitLab API 登录是否成功。
 
 其中：
 
@@ -1075,6 +1113,7 @@ actual-coder agents
 - [ ] `actual-coder --help` 成功；
 - [ ] `actual-coder config` 显示正确 GitLab 与 allowlist；
 - [ ] `actual-coder agents` 能看到至少一个 backend；
+- [ ] `actual-coder doctor` 无 FAIL；
 - [ ] `GITLAB_TOKEN` 不在任何 Git tracked file 中；
 - [ ] `GITLAB_GIT_TOKEN` 不在任何 Git tracked file 中；
 - [ ] `uv run python scripts/check_repo_secrets.py` 通过；
