@@ -1,6 +1,6 @@
 [project]
 name = "chatgpt-selfhosted-gitlab-mcp"
-version = "0.2.0a1"
+version = "0.2.0a2"
 description = "Read-only ChatGPT MCP plus a local Codex-friendly GitLab worktree/coding engine"
 requires-python = ">=3.10"
 dependencies = [
