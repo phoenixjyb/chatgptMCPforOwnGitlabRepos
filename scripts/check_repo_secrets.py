@@ -121,7 +121,7 @@ def scan_history() -> list[str]:
     # Full-history patch scan catches secrets that were later deleted from HEAD.
     data = run_git(
         "log",
-        "--all",
+        "HEAD",
         "--full-history",
         "--no-ext-diff",
         "--no-color",
