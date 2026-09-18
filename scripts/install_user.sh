@@ -30,6 +30,7 @@ fi
 
 echo
 echo "Verify from any directory:"
-echo "  codingagent --help"
-echo "  codingagent config"
+echo "  actual-coder --help"
+echo "  actual-coder config"
+echo "  codingagent --help  # compatibility alias"
 echo "  gitlab-agent --help"
