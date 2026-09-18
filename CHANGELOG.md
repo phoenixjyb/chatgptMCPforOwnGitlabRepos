@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.2.0-alpha.4 - Unreleased
+## 0.2.0-alpha.5 - Unreleased
+
+- Rename the user-facing orchestration layer from **CodingAgent** to **ActualCoder**.
+- Add the primary `actual-coder` console command.
+- Keep `codingagent` as a compatibility alias during the alpha series.
+- Update generated agent prompts to say they were selected by ActualCoder.
+- Update README, architecture docs, installer output, quickstart, tests, and CI for the new name.
+- Keep `gitlab-agent` unchanged as the low-level GitLab/worktree control plane.
+
+## 0.2.0-alpha.4
 
 - Introduce **CodingAgent** as the agent-neutral user-facing coding layer.
 - Add the `codingagent` console command while retaining `gitlab-agent` as the lower-level GitLab/worktree controller.
