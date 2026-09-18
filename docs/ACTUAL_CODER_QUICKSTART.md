@@ -61,8 +61,7 @@ agent_command
 agent_prompt
 ```
 
-For Codex, alpha.4 also keeps the older `codex_command` / `codex_prompt`
-aliases for compatibility.
+For Codex, the older `codex_command` / `codex_prompt` aliases remain available for compatibility.
 
 ## 3. Start a task with GitHub Copilot CLI
 
@@ -209,7 +208,7 @@ Example:
 
 ## 9. Current backends
 
-Alpha.4 supports:
+Alpha.5 supports:
 
 ```text
 codex
