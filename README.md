@@ -6,7 +6,7 @@
 This project now has **two complementary pieces**:
 
 1. **Read-only ChatGPT MCP** — inspect private/self-hosted GitLab repositories from normal ChatGPT conversations.
-2. **CodingAgent** — an agent-neutral local coding layer that can hand an isolated GitLab worktree to Codex CLI, GitHub Copilot CLI, or future coding agents while `gitlab-agent` owns repository/MR lifecycle operations.
+2. **ActualCoder** — an agent-neutral local coding layer that can hand an isolated GitLab worktree to Codex CLI, GitHub Copilot CLI, or future coding agents while `gitlab-agent` owns repository/MR lifecycle operations.
 
 The v0.2 design deliberately avoids OpenAI model API calls from this project.
 
@@ -27,7 +27,7 @@ Self-hosted GitLab
 
 
 Codex CLI ───────┐
-Copilot CLI ─────┼──► CodingAgent
+Copilot CLI ─────┼──► ActualCoder
 future agents ───┘        │
                           ▼
                     gitlab-agent
@@ -56,9 +56,9 @@ The GitLab server does **not** need to be directly reachable from the public Int
 - `get_pipeline_jobs`
 - `get_job_log`
 
-## v0.2 CodingAgent
+## v0.2 ActualCoder
 
-`codingagent` is the user-facing agent-neutral command. `gitlab-agent` remains the lower-level GitLab/worktree controller.
+`actual-coder` is the primary user-facing agent-neutral command. `gitlab-agent` remains the lower-level GitLab/worktree controller. The older `codingagent` command remains available as a compatibility alias during the alpha series.
 
 Supported coding backends:
 
@@ -70,7 +70,7 @@ copilot
 Example handoff:
 
 ```bash
-codingagent task team/project-a \
+actual-coder task team/project-a \
   --agent copilot \
   --base-ref main \
   --task fix-timeout \
@@ -171,11 +171,12 @@ uv run mcp dev server.py
 Test the v0.2 CLIs:
 
 ```bash
-uv run codingagent --help
+uv run actual-coder --help
+uv run codingagent --help   # compatibility alias
 uv run gitlab-agent --help
 ```
 
-### Install CodingAgent for use from any worktree
+### Install ActualCoder for use from any worktree
 
 Install the package as an editable user tool:
 
@@ -194,8 +195,9 @@ chmod 600 ~/.config/gitlab-agent/.env
 After that, from any directory:
 
 ```bash
-codingagent --help
-codingagent config
+actual-coder --help
+actual-coder config
+codingagent --help   # compatibility alias
 gitlab-agent --help
 ```
 
@@ -255,7 +257,8 @@ If you use Codex and want to avoid API billing, sign Codex in with your ChatGPT 
 
 - **English setup guide:** [docs/SETUP_TUTORIAL.md](docs/SETUP_TUTORIAL.md)
 - **中文配置教程:** [docs/SETUP_TUTORIAL_CN.md](docs/SETUP_TUTORIAL_CN.md)
-- **CodingAgent quickstart:** [docs/CODINGAGENT_QUICKSTART.md](docs/CODINGAGENT_QUICKSTART.md)
+- **ActualCoder quickstart:** [docs/ACTUAL_CODER_QUICKSTART.md](docs/ACTUAL_CODER_QUICKSTART.md)
+- **Legacy CodingAgent quickstart:** [docs/CODINGAGENT_QUICKSTART.md](docs/CODINGAGENT_QUICKSTART.md)
 - **Legacy v0.2 Codex/local coding quickstart:** [docs/V0.2_CODEX_QUICKSTART.md](docs/V0.2_CODEX_QUICKSTART.md)
 - **v0.2 architecture:** [docs/V0.2_WRITE_ACCESS_DESIGN.md](docs/V0.2_WRITE_ACCESS_DESIGN.md)
 - **Troubleshooting:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
@@ -273,8 +276,9 @@ Apache License 2.0. See [LICENSE](LICENSE).
 ## Status
 
 - `v0.1.0`: tagged read-only release.
-- `v0.2.0-dev`: active development branch for CodingAgent.
-- Package version on the v0.2 branch: `0.2.0a4`.
+- `v0.2.0-dev`: active development branch for ActualCoder.
+- Package version on the v0.2 branch: `0.2.0a5`.
 - Alpha.2 adds global installation, task/resume handoffs, and iterative pushes to an existing MR branch.
 - Alpha.3 adds reconstruction of local workspaces from existing remote branches or GitLab MRs after cleanup/restart.
-- Alpha.4 introduces the `codingagent` command and first-class `codex` / `copilot` backend selection.
+- Alpha.4 introduced the agent-neutral handoff abstraction and first-class `codex` / `copilot` backend selection.
+- Alpha.5 renames the primary user-facing CLI to `actual-coder`; `codingagent` remains a compatibility alias.
