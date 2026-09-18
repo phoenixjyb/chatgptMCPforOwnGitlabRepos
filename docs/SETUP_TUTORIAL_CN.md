@@ -1,5 +1,7 @@
 # 中文教程：让 ChatGPT 直接读取私有 / 自建 GitLab
 
+> 本文只讲 **ChatGPT 只读 MCP**。团队日常真实 coding（ActualCoder + Codex/Copilot + GitLab MR）请优先阅读 [TEAM_GUIDE_CN.md](TEAM_GUIDE_CN.md)。
+
 这套方案适合 **GitLab 部署在公司内网、VPN 或本机网络中，无法直接被公网访问** 的场景。
 
 整体结构：
