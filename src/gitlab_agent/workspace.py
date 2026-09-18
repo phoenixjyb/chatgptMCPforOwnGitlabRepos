@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -506,6 +507,63 @@ class WorkspaceManager:
         )
         return self.diff(workspace_id)
 
+    def _untracked_diff(self, worktree: Path) -> str:
+        status = self._run_git(
+            ["status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=worktree,
+        ).stdout
+
+        chunks: list[str] = []
+        for raw_line in status.splitlines():
+            if not raw_line.startswith("?? "):
+                continue
+
+            rel_path = raw_line[3:]
+            target = (worktree / rel_path).resolve()
+            try:
+                target.relative_to(worktree)
+            except ValueError:
+                continue
+
+            if not target.is_file():
+                continue
+
+            raw = target.read_bytes()
+            if len(raw) > self.settings.max_file_bytes:
+                chunks.append(
+                    f"diff --git a/{rel_path} b/{rel_path}\n"
+                    f"new file mode 100644\n"
+                    f"--- /dev/null\n"
+                    f"+++ b/{rel_path}\n"
+                    f"@@ file too large to preview: {len(raw)} bytes @@\n"
+                )
+                continue
+
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                chunks.append(
+                    f"diff --git a/{rel_path} b/{rel_path}\n"
+                    f"new file mode 100644\n"
+                    f"Binary files /dev/null and b/{rel_path} differ\n"
+                )
+                continue
+
+            diff_lines = difflib.unified_diff(
+                [],
+                text.splitlines(keepends=True),
+                fromfile="/dev/null",
+                tofile=f"b/{rel_path}",
+            )
+            body = "".join(diff_lines)
+            chunks.append(
+                f"diff --git a/{rel_path} b/{rel_path}\n"
+                f"new file mode 100644\n"
+                + body
+            )
+
+        return "\n".join(chunks)
+
     def diff(self, workspace_id: str) -> dict[str, object]:
         state = self.get_state(workspace_id)
         worktree = self._worktree(state)
@@ -521,6 +579,7 @@ class WorkspaceManager:
             ["diff", "--no-ext-diff", f"{state.base_sha}..HEAD", "--", "."],
             cwd=worktree,
         ).stdout
+        untracked = self._untracked_diff(worktree)
 
         budget = self.settings.max_output_bytes
         combined = (
@@ -530,6 +589,8 @@ class WorkspaceManager:
             + staged
             + "\n### UNSTAGED\n"
             + working
+            + "\n### UNTRACKED\n"
+            + untracked
         )
         clipped, truncated, original_bytes = _clip(combined, budget)
         return {
