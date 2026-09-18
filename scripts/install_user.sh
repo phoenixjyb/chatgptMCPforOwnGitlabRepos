@@ -30,5 +30,6 @@ fi
 
 echo
 echo "Verify from any directory:"
+echo "  codingagent --help"
+echo "  codingagent config"
 echo "  gitlab-agent --help"
-echo "  gitlab-agent config"
