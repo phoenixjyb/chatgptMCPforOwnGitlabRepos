@@ -56,7 +56,7 @@ https://platform.openai.com/settings/organization/tunnels
 创建 Tunnel，并记录：
 
 ```text
-CONTROL_PLANE_TUNNEL_ID=tunnel_0123456789abcdef0123456789abcdef
+CONTROL_PLANE_TUNNEL_ID=tunnel_YOUR_ACTUAL_ID
 ```
 
 如果成员自己不能创建，让 Platform 管理员创建，并确保：
