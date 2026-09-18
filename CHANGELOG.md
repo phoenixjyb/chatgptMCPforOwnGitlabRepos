@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0-alpha.1 - Unreleased
+
+- Add `actual-coder doctor` / `gitlab-agent doctor` as a non-destructive readiness diagnostic.
+- Check Python, Git, uv, supported coding backends, optional tunnel-client, and accidental `OPENAI_API_KEY` presence.
+- Validate config loading, config-file permissions, GitLab URL/token presence, project allowlist, and proxy policy.
+- Check workspace-root writability, free disk space, and stale/malformed workspace state.
+- Perform a live GitLab `/user` authentication check by default, with `--offline` to skip network access.
+- Return structured JSON with `pass` / `warn` / `fail` / `skip` checks and a non-zero exit code on failures.
+- Keep the command non-destructive: it does not write GitLab and does not invoke coding-agent models.
+- Add cross-platform doctor regression coverage and team onboarding documentation.
+
 ## 0.2.1 - 2026-09-18
 
 - Add native Windows PowerShell installer and MCP launcher.
