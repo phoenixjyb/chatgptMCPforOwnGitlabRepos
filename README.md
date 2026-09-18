@@ -132,6 +132,30 @@ actual-coder doctor --offline
 
 `doctor` is non-destructive: it does not modify GitLab and does not invoke Codex/Copilot models. It checks the local runtime, config safety, project allowlist, GitLab API authentication (unless `--offline`), proxy policy, workspace state, disk space, coding-backend availability, and optional tunnel-client setup.
 
+### Repository-local project contract
+
+A target repository may optionally contain:
+
+```text
+.actualcoder.yaml
+```
+
+Validate it without creating a worktree:
+
+```bash
+actual-coder project-config team/project-a --validate
+```
+
+Use another ref:
+
+```bash
+actual-coder project-config team/project-a --ref develop --validate
+```
+
+The contract can declare base branch, preferred backends, validation argv, protected paths, project instructions, required executables, and MR conventions. Repository configuration **cannot grant itself new executable permissions**: every requested executable must already be present in the developer's `GITLAB_ALLOWED_EXECUTABLES`.
+
+See [`.actualcoder.example.yaml`](.actualcoder.example.yaml).
+
 Start a coding task:
 
 ```bash
@@ -305,8 +329,9 @@ gitlab-agent
 - `v0.1.0`: read-only ChatGPT MCP release.
 - `main`: recommended team-consumption branch.
 - `v0.3.0-dev`: active development branch for lifecycle/productivity features.
-- Current development package version: `0.3.0a1`.
-- v0.3 alpha.1 adds `actual-coder doctor` as the first lifecycle-readiness feature.
+- Current development package version: `0.3.0a2`.
+- v0.3 alpha.1 adds `actual-coder doctor`.
+- v0.3 alpha.2 adds the repository-local `.actualcoder.yaml` project contract and `project-config --validate`.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
