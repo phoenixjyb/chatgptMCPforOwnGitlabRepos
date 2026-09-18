@@ -59,8 +59,22 @@ def csv_set(name: str, default: set[str] | None = None) -> set[str]:
     return {item.strip() for item in raw.split(",") if item.strip()}
 
 
+def resolve_env_file() -> Path:
+    """Resolve config for global CLI use while keeping local .env compatibility."""
+    explicit = os.getenv("GITLAB_AGENT_ENV_FILE")
+    if explicit:
+        return Path(explicit).expanduser()
+
+    user_config = Path("~/.config/gitlab-agent/.env").expanduser()
+    if user_config.is_file():
+        return user_config
+
+    return Path(".env")
+
+
 @dataclass(frozen=True)
 class AgentSettings:
+    config_file: Path
     gitlab_base_url: str
     api_token: str
     git_token: str
@@ -80,7 +94,7 @@ class AgentSettings:
 
     @classmethod
     def load(cls) -> "AgentSettings":
-        env_file = Path(os.getenv("GITLAB_AGENT_ENV_FILE", ".env")).expanduser()
+        env_file = resolve_env_file()
         load_env_file(env_file)
 
         base_url = os.getenv("GITLAB_BASE_URL", "").strip().rstrip("/")
@@ -104,6 +118,7 @@ class AgentSettings:
             raise RuntimeError("GITLAB_BRANCH_PREFIX must be a non-empty branch prefix")
 
         return cls(
+            config_file=env_file.resolve() if env_file.exists() else env_file.expanduser(),
             gitlab_base_url=base_url,
             api_token=api_token,
             git_token=git_token,
