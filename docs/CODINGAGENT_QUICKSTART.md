@@ -1,6 +1,10 @@
-# CodingAgent Quickstart
+# CodingAgent Quickstart (Compatibility Alias)
 
-CodingAgent is the agent-neutral local coding layer in this repository.
+> **Renamed:** the primary product/CLI is now **ActualCoder** / `actual-coder`.
+> This document is retained for alpha compatibility. See
+> [ACTUAL_CODER_QUICKSTART.md](ACTUAL_CODER_QUICKSTART.md).
+
+CodingAgent is the former name of the agent-neutral local coding layer.
 
 It separates:
 
