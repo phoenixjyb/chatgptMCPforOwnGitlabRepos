@@ -35,9 +35,7 @@ jobs:
           uv run gitlab-agent --help
 
       - name: Compile Python sources
-        run: |
-          uv run python -m py_compile server.py smoke_test.py
-          uv run python -m py_compile src/gitlab_agent/*.py tests/*.py
+        run: uv run python -m compileall -q server.py smoke_test.py src/gitlab_agent tests
 
       - name: Run v0.2 local workflow tests
         run: uv run python -m unittest discover -s tests -v
@@ -81,9 +79,7 @@ jobs:
           uv run gitlab-agent --help
 
       - name: Compile Python sources
-        run: |
-          uv run python -m py_compile server.py smoke_test.py
-          uv run python -m py_compile src/gitlab_agent/*.py tests/*.py
+        run: uv run python -m compileall -q server.py smoke_test.py src/gitlab_agent tests
 
       - name: Parse native Windows PowerShell scripts
         if: matrix.os == 'windows-latest'
