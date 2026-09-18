@@ -83,6 +83,9 @@ def is_text_candidate(path: Path) -> bool:
 
 SAFE_EXAMPLE_VALUES = {
     "tunnel_0123456789abcdef0123456789abcdef",
+    # Historical dummy used only to verify the finish secret-detection test.
+    # Keep this exact test fixture ignored so full-history scanning can remain enabled.
+    "glpat-abcdefghijklmnop",
 }
 
 
