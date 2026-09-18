@@ -3,7 +3,13 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from gitlab_agent.cli import _agent_prompt, _available_agents, _build_parser, _handoff
+from gitlab_agent.cli import (
+    _agent_prompt,
+    _available_agents,
+    _build_parser,
+    _handoff,
+    _select_agent,
+)
 
 
 class FakeManager:
@@ -38,6 +44,11 @@ class ActualCoderCLITests(unittest.TestCase):
         self.assertIn("Implement a small fix", str(result["agent_prompt"]))
         self.assertNotIn("codex_command", result)
         self.assertNotIn("codex_prompt", result)
+        self.assertEqual(result["agent_requested"], "copilot")
+        self.assertEqual(
+            result["agent_selection"]["reason"],
+            "explicit backend selection",
+        )
 
     def test_codex_handoff_keeps_compatibility_aliases(self) -> None:
         result = _handoff(
@@ -54,6 +65,42 @@ class ActualCoderCLITests(unittest.TestCase):
         self.assertEqual(result["codex_command"], result["agent_command"])
         self.assertEqual(result["codex_prompt"], result["agent_prompt"])
 
+    def test_auto_selection_honors_project_preference(self) -> None:
+        def fake_which(executable: str) -> str | None:
+            if executable in {"codex", "copilot"}:
+                return f"/tools/{executable}"
+            return None
+
+        selection = _select_agent(
+            "auto",
+            preferred_agents=["copilot", "codex"],
+            which=fake_which,
+        )
+        self.assertEqual(selection["selected"], "copilot")
+        self.assertEqual(selection["preference_source"], "project")
+        self.assertIn("project preference", str(selection["reason"]))
+
+    def test_auto_selection_falls_back_to_installed_default(self) -> None:
+        def fake_which(executable: str) -> str | None:
+            return "/tools/copilot" if executable == "copilot" else None
+
+        selection = _select_agent(
+            "auto",
+            preferred_agents=["codex"],
+            which=fake_which,
+        )
+        self.assertEqual(selection["selected"], "copilot")
+        self.assertEqual(selection["preference_source"], "fallback")
+        self.assertEqual(selection["installed_candidates"], ["copilot"])
+
+    def test_auto_selection_fails_when_no_backend_is_installed(self) -> None:
+        with self.assertRaises(RuntimeError):
+            _select_agent(
+                "auto",
+                preferred_agents=["codex", "copilot"],
+                which=lambda executable: None,
+            )
+
     def test_actual_coder_parser_accepts_backend_selection(self) -> None:
         parser = _build_parser(prog="actual-coder")
         args = parser.parse_args(
@@ -69,6 +116,18 @@ class ActualCoderCLITests(unittest.TestCase):
         self.assertEqual(args.command, "task")
         self.assertEqual(args.agent, "copilot")
         self.assertEqual(args.goal, "Fix it")
+
+        auto_args = parser.parse_args(
+            [
+                "task",
+                "team/project",
+                "--agent",
+                "auto",
+                "--goal",
+                "Inspect",
+            ]
+        )
+        self.assertEqual(auto_args.agent, "auto")
 
     def test_codingagent_compatibility_alias_still_accepts_backend_selection(self) -> None:
         parser = _build_parser(prog="codingagent")
