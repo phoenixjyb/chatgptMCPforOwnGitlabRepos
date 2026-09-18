@@ -351,6 +351,65 @@ class WorkspaceManager:
                 return proc.stdout.strip()
         raise RuntimeError(f"Could not resolve base ref {base_ref!r}")
 
+    def read_remote_text_file(
+        self,
+        project: str,
+        relative_path: str,
+        *,
+        ref: str | None = None,
+    ) -> dict[str, object]:
+        """Read a UTF-8 text file from a fetched remote ref without creating a worktree."""
+
+        project = project.strip().strip("/")
+        if not project or "/" not in project:
+            raise ValueError("project must be a GitLab path_with_namespace")
+
+        rel = relative_path.strip().replace("\\", "/")
+        if (
+            not rel
+            or rel.startswith("/")
+            or ":" in rel
+            or any(part in {"", ".", ".."} for part in rel.split("/"))
+        ):
+            raise ValueError("relative_path must be a safe repository-relative path")
+
+        repo_path = self._ensure_cached_repo(project)
+        effective_ref = (ref or self.settings.default_base_ref).strip()
+        commit_sha = self._resolve_base_sha(repo_path, effective_ref)
+        spec = f"{commit_sha}:{rel}"
+
+        exists = self._run_git(
+            ["--git-dir", str(repo_path), "cat-file", "-e", spec],
+            check=False,
+        )
+        if exists.returncode != 0:
+            return {
+                "project": project,
+                "ref": effective_ref,
+                "commit_sha": commit_sha,
+                "path": rel,
+                "exists": False,
+                "content": None,
+            }
+
+        shown = self._run_git(
+            ["--git-dir", str(repo_path), "show", spec],
+            check=False,
+        )
+        if shown.returncode != 0:
+            raise RuntimeError(
+                f"Could not read {rel!r} from {project!r} at ref {effective_ref!r}"
+            )
+
+        return {
+            "project": project,
+            "ref": effective_ref,
+            "commit_sha": commit_sha,
+            "path": rel,
+            "exists": True,
+            "content": shown.stdout,
+        }
+
     # ------------------------------------------------------------------
     # Workspace lifecycle
     # ------------------------------------------------------------------
