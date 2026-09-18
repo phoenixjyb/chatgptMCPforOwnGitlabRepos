@@ -146,6 +146,14 @@ Validate it without creating a worktree:
 actual-coder project-config team/project-a --validate
 ```
 
+Validate a local candidate before committing it:
+
+```bash
+actual-coder project-config team/project-a \
+  --file .actualcoder.example.yaml \
+  --validate
+```
+
 Use another ref:
 
 ```bash
