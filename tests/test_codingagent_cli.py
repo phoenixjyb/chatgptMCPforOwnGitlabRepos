@@ -116,6 +116,22 @@ class ActualCoderCLITests(unittest.TestCase):
         self.assertEqual(args.command, "doctor")
         self.assertTrue(args.offline)
 
+    def test_project_config_parser_accepts_ref_and_validate(self) -> None:
+        parser = _build_parser(prog="actual-coder")
+        args = parser.parse_args(
+            [
+                "project-config",
+                "team/project",
+                "--ref",
+                "develop",
+                "--validate",
+            ]
+        )
+        self.assertEqual(args.command, "project-config")
+        self.assertEqual(args.project, "team/project")
+        self.assertEqual(args.ref, "develop")
+        self.assertTrue(args.validate)
+
     def test_agent_prompt_rejects_unknown_backend(self) -> None:
         status = FakeManager().status("abc123")
         with self.assertRaises(ValueError):
