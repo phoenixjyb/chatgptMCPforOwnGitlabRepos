@@ -221,11 +221,12 @@ class FinishTests(unittest.TestCase):
         self.assertTrue(any("Protected paths changed" in item for item in plan["blockers"]))
 
     def test_secret_finding_blocks_finish(self) -> None:
-        diff = """diff --git a/leak.txt b/leak.txt
+        fake_token = "gl" + "pat-" + "abcdefghijklmnop"
+        diff = f"""diff --git a/leak.txt b/leak.txt
 --- /dev/null
 +++ b/leak.txt
 @@ -0,0 +1 @@
-+token=glpat-abcdefghijklmnop
++token={fake_token}
 """
         manager = FakeManager(
             root=self.root,
