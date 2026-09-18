@@ -392,6 +392,24 @@ mr:
         self.assertEqual(calls[0][0], ["copilot", "-i", "Inspect only"])
         self.assertFalse(calls[0][2])
 
+    def test_finish_parser_accepts_dry_run_and_safety_overrides(self) -> None:
+        parser = _build_parser(prog="actual-coder")
+        args = parser.parse_args(
+            [
+                "finish",
+                "abc123def456",
+                "--message",
+                "fix: example",
+                "--dry-run",
+                "--allow-protected",
+                "--allow-secret-match",
+            ]
+        )
+        self.assertEqual(args.command, "finish")
+        self.assertTrue(args.dry_run)
+        self.assertTrue(args.allow_protected)
+        self.assertTrue(args.allow_secret_match)
+
     def test_agent_prompt_rejects_unknown_backend(self) -> None:
         status = FakeManager().status("abc123")
         with self.assertRaises(ValueError):
