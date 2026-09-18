@@ -26,8 +26,10 @@ jobs:
       - name: Resolve dependencies
         run: uv sync
 
-      - name: Verify packaged CLI
-        run: uv run gitlab-agent --help
+      - name: Verify packaged CLIs
+        run: |
+          uv run codingagent --help
+          uv run gitlab-agent --help
 
       - name: Compile Python sources
         run: |
