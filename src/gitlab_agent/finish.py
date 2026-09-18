@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from typing import Any
 
 from .config import AgentSettings
@@ -36,6 +39,7 @@ def _load_base_contract(
         state.project,
         PROJECT_CONFIG_FILENAME,
         ref=state.base_sha,
+        refresh_remote=False,
     )
     parsed = parse_project_config(
         remote["content"] if remote["exists"] else None,
@@ -75,18 +79,12 @@ def build_finish_plan(
 ) -> dict[str, object]:
     """Validate a workspace and produce the controlled finish plan."""
 
-    status = manager.status(workspace_id)
     state = manager.get_state(workspace_id)
     project_context, project_metadata = _load_base_contract(
         settings,
         manager,
         workspace_id,
     )
-
-    changed_paths = manager.changed_paths(workspace_id)
-    diff_result = manager.diff(workspace_id)
-    security_diff = manager.security_diff(workspace_id)
-    secret_findings = scan_added_diff_for_secrets(security_diff)
 
     protected_rules = sorted(
         {
@@ -148,6 +146,15 @@ def build_finish_plan(
                 "result": result,
             }
         )
+
+    # Re-read the exact workspace state after validations. Validation commands may
+    # create/update files, so the reviewed diff and safety scan must reflect the
+    # post-validation state that could actually be committed/pushed.
+    status = manager.status(workspace_id)
+    changed_paths = manager.changed_paths(workspace_id)
+    diff_result = manager.diff(workspace_id)
+    security_diff = manager.security_diff(workspace_id)
+    secret_findings = scan_added_diff_for_secrets(security_diff)
 
     dirty = bool(status["dirty"])
     ahead = int(status["commits_ahead_of_base"])
@@ -228,6 +235,26 @@ def build_finish_plan(
             "Secret-scan findings were explicitly overridden for this finish invocation."
         )
 
+    snapshot_payload = {
+        "head": status.get("head"),
+        "dirty": bool(status.get("dirty")),
+        "status_porcelain": str(status.get("status_porcelain") or ""),
+        "commits_ahead_of_base": int(status.get("commits_ahead_of_base", 0)),
+        "pushed": bool(state.pushed),
+        "merge_request_url": state.merge_request_url,
+        "remote_branch": state.remote_branch,
+        "security_diff_sha256": hashlib.sha256(
+            security_diff.encode("utf-8", errors="replace")
+        ).hexdigest(),
+    }
+    snapshot_digest = hashlib.sha256(
+        json.dumps(
+            snapshot_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
     return {
         "ok": not blockers,
         "workspace": status,
@@ -245,6 +272,10 @@ def build_finish_plan(
         },
         "validations": validations,
         "review_diff": diff_result,
+        "snapshot": {
+            "digest": snapshot_digest,
+            **snapshot_payload,
+        },
         "plan": {
             "commit_required": dirty,
             "commit_message": (
@@ -275,6 +306,41 @@ def execute_finish(
     action = plan["plan"]
     if not isinstance(action, dict):
         raise RuntimeError("Invalid finish plan")
+
+    expected_snapshot = plan.get("snapshot")
+    if not isinstance(expected_snapshot, dict):
+        raise RuntimeError("Finish plan is missing its reviewed workspace snapshot")
+
+    current_status = manager.status(workspace_id)
+    current_state = manager.get_state(workspace_id)
+    current_security_diff = manager.security_diff(workspace_id)
+    current_payload = {
+        "head": current_status.get("head"),
+        "dirty": bool(current_status.get("dirty")),
+        "status_porcelain": str(current_status.get("status_porcelain") or ""),
+        "commits_ahead_of_base": int(
+            current_status.get("commits_ahead_of_base", 0)
+        ),
+        "pushed": bool(current_state.pushed),
+        "merge_request_url": current_state.merge_request_url,
+        "remote_branch": current_state.remote_branch,
+        "security_diff_sha256": hashlib.sha256(
+            current_security_diff.encode("utf-8", errors="replace")
+        ).hexdigest(),
+    }
+    current_digest = hashlib.sha256(
+        json.dumps(
+            current_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+    if current_digest != expected_snapshot.get("digest"):
+        raise RuntimeError(
+            "Workspace changed after the finish plan was reviewed. "
+            "No Git write was performed; rerun actual-coder finish."
+        )
 
     commit_result: dict[str, object] | None = None
     if bool(action.get("commit_required")):
