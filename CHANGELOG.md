@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.3.0-alpha.1 - Unreleased
+## 0.3.0-alpha.2 - Unreleased
+
+- Add optional repository-local `.actualcoder.yaml` project contracts.
+- Add `actual-coder project-config PROJECT [--ref REF] [--validate]`.
+- Read the project contract from a fetched remote Git ref without creating a worktree.
+- Add strict YAML schema validation for base branch, backend preference, validation commands, protected paths, instructions, required executables, and MR conventions.
+- Require validation commands to use argv arrays rather than shell strings.
+- Prevent repository config from self-authorizing new executables; requested tools must already be approved in `GITLAB_ALLOWED_EXECUTABLES`.
+- Cap repository-requested command timeouts at the developer's configured maximum.
+- Treat a missing project contract as valid and fall back to user/default settings.
+- Add `.actualcoder.example.yaml` and regression tests.
+
+## 0.3.0-alpha.1
 
 - Add `actual-coder doctor` / `gitlab-agent doctor` as a non-destructive readiness diagnostic.
 - Check Python, Git, uv, supported coding backends, optional tunnel-client, and accidental `OPENAI_API_KEY` presence.
