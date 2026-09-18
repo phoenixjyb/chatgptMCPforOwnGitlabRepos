@@ -197,6 +197,27 @@ actual-coder start team/project-a \
 
 The launcher does not enable broad automatic-approval modes. Codex receives the generated handoff as its initial interactive prompt; Copilot is launched in interactive mode with the generated initial prompt.
 
+### Controlled finish workflow
+
+After the coding backend makes changes, first preview the finish plan:
+
+```bash
+actual-coder finish <workspace-id> \
+  --message "fix: describe the change" \
+  --dry-run
+```
+
+The dry run performs project validation commands, scans added diff lines for high-signal credentials, checks protected paths, shows the diff, and plans either `push-mr` or `push-update`. It performs no commit or push.
+
+If the plan is unblocked:
+
+```bash
+actual-coder finish <workspace-id> \
+  --message "fix: describe the change"
+```
+
+ActualCoder prints the plan and requires human confirmation before Git writes. `--yes` exists for intentional scripted use, but it does not bypass validation, protected-path, or secret-scan gates. Protected or secret findings require their own explicit override flags after review.
+
 The lower-level/compatibility task command remains available:
 
 ```bash
@@ -382,11 +403,12 @@ gitlab-agent
 - `v0.1.0`: read-only ChatGPT MCP release.
 - `main`: recommended team-consumption branch.
 - `v0.3.0-dev`: active development branch for lifecycle/productivity features.
-- Current development package version: `0.3.0a4`.
+- Current development package version: `0.3.0a5`.
 - v0.3 alpha.1 adds `actual-coder doctor`.
 - v0.3 alpha.2 adds the repository-local `.actualcoder.yaml` project contract and `project-config --validate`.
 - v0.3 alpha.3 adds project-aware `--agent auto` selection with explicit selection metadata.
 - v0.3 alpha.4 adds the high-level `actual-coder start` lifecycle with doctor/project-config/auto-selection integration and optional interactive backend launch.
+- v0.3 alpha.5 adds the controlled `actual-coder finish` plan/validation/secret/protected-path/commit/MR workflow.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
