@@ -166,6 +166,18 @@ class WorkspaceManager:
     @contextmanager
     def _git_auth_env(self, *, require_token: bool) -> Iterator[dict[str, str]]:
         env = os.environ.copy()
+
+        # Internal GitLab instances commonly need to bypass a host-wide
+        # ALL_PROXY/HTTP_PROXY/HTTPS_PROXY (e.g. Clash/Surge/V2Ray). Match the
+        # read-MCP default: direct network access unless explicitly opted in.
+        if not self.settings.git_trust_env:
+            for key in (
+                "ALL_PROXY", "all_proxy",
+                "HTTP_PROXY", "http_proxy",
+                "HTTPS_PROXY", "https_proxy",
+            ):
+                env.pop(key, None)
+
         env["GIT_TERMINAL_PROMPT"] = "0"
 
         token = self.settings.git_token
@@ -221,8 +233,14 @@ class WorkspaceManager:
                 env["GIT_AUTHOR_EMAIL"] = self.settings.git_author_email
                 env["GIT_COMMITTER_EMAIL"] = self.settings.git_author_email
 
+            git_argv = ["git"]
+            if not self.settings.git_trust_env:
+                # Also override any proxy configured in ~/.gitconfig.
+                git_argv.extend(["-c", "http.proxy="])
+            git_argv.extend(args)
+
             proc = subprocess.run(
-                ["git", *args],
+                git_argv,
                 cwd=cwd,
                 input=input_text,
                 text=True,
