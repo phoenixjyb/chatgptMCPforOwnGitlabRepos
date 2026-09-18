@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.2.0-alpha.2 - Unreleased
+## 0.2.0-alpha.3 - Unreleased
+
+- Add `checkout-branch` to reconstruct a managed local worktree from an existing remote feature branch.
+- Add `checkout-mr` to resume a same-project GitLab MR after local cleanup/restart.
+- Preserve existing MR URL/source branch state so `push-update` continues the same MR.
+- Refuse duplicate local worktrees for a branch that is already checked out.
+- Add GitLab MR API helper with the same direct-network/proxy-bypass behavior.
+- Add tests for branch reconstruction, continued pushes, and MR API lookup behavior.
+
+## 0.2.0-alpha.2
 
 - Add user-level editable installation for `gitlab-agent`.
 - Add stable config lookup via `~/.config/gitlab-agent/.env`.
