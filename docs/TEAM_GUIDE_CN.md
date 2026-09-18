@@ -521,7 +521,57 @@ Git 分支、worktree、MR 都不会因为更换 backend 而变化。
 
 # 第五部分：标准开发流程
 
-## 11. 创建一个新任务
+## 11. 推荐：用 `actual-coder start` 开始任务
+
+团队日常推荐入口：
+
+```bash
+actual-coder start team/project-a \
+  --task fix-timeout \
+  --goal "Fix the request timeout bug and add regression coverage"
+```
+
+默认：
+
+```text
+--agent auto
+```
+
+一次完成：
+
+```text
+doctor preflight
+→ 读取/验证 .actualcoder.yaml
+→ 决定 effective base branch
+→ 选择已安装 backend
+→ 创建 isolated worktree
+→ 把 project instructions / protected paths / validation commands 注入 handoff
+→ 启动 coding CLI
+```
+
+如果只想测试整个准备流程、**不消耗模型额度**：
+
+```bash
+actual-coder start team/project-a \
+  --task inspect \
+  --goal "Inspect the workspace only. Do not modify files." \
+  --no-launch
+```
+
+如果目前不在公司网络/VPN，但其他本地准备需要测试，可配合：
+
+```text
+--offline-doctor
+```
+
+不过真正创建 GitLab workspace 仍然需要能访问 GitLab。
+
+ActualCoder 启动 backend 时不会替团队成员打开 `--allow-all-tools` / full-auto 一类广泛自动授权；使用 coding CLI 本身正常的交互/approval 机制。
+
+## 11.1 低层兼容：`actual-coder task`
+
+原有 `task` 仍然保留，适合调试和脚本：
+
 
 示例：
 
