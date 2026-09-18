@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0-alpha.1 - Unreleased
+
+- Keep the ChatGPT MCP read-only for the personal-Pro workflow.
+- Add a reusable local coding engine for Codex/terminal use.
+- Add isolated cached Git repositories and per-task worktrees.
+- Add safe workspace read/write and unified-patch operations.
+- Add allowlisted build/test execution with timeout/output limits and secret scrubbing.
+- Add dedicated commit and feature-branch push operations.
+- Add first-push GitLab Merge Request creation via Git push options.
+- Add explicit project allowlist and branch-prefix safety policy.
+- Add `gitlab-agent` JSON CLI.
+- Add local Git workflow tests.
+- Add CI invariant preventing accidental OpenAI model API integration.
+
 ## 0.1.0 - Initial public version
 
 - Read-only MCP server for self-managed GitLab.
