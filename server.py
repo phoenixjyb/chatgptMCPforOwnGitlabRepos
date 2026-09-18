@@ -44,7 +44,19 @@ def _load_env_file(path: Path) -> None:
         os.environ.setdefault(key, value)
 
 
-_load_env_file(Path(__file__).resolve().with_name(".env"))
+def _resolve_env_file() -> Path:
+    explicit = os.getenv("GITLAB_AGENT_ENV_FILE")
+    if explicit:
+        return Path(explicit).expanduser()
+
+    user_config = Path("~/.config/gitlab-agent/.env").expanduser()
+    if user_config.is_file():
+        return user_config
+
+    return Path(__file__).resolve().with_name(".env")
+
+
+_load_env_file(_resolve_env_file())
 
 
 # -----------------------------------------------------------------------------
