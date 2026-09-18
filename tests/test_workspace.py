@@ -110,6 +110,31 @@ class WorkspaceManagerTests(unittest.TestCase):
         cleaned = self.manager.cleanup(workspace_id)
         self.assertTrue(cleaned["removed"])
 
+    def test_second_commit_can_update_existing_remote_branch(self) -> None:
+        created = self.manager.create_workspace("team/project", task_slug="iterate")
+        workspace_id = str(created["workspace_id"])
+
+        self.manager.write_file(workspace_id, "first.txt", "one\n")
+        self.manager.commit(workspace_id, "First change")
+        first_push = self.manager.push(workspace_id)
+        self.assertFalse(first_push["updated_existing_branch"])
+
+        self.manager.write_file(workspace_id, "second.txt", "two\n")
+        second_commit = self.manager.commit(workspace_id, "Second change")
+        second_push = self.manager.push(workspace_id)
+
+        self.assertTrue(second_push["updated_existing_branch"])
+        branch = str(second_push["workspace"]["branch"])
+        remote_sha = run(
+            "git",
+            "--git-dir",
+            str(self.remote),
+            "rev-parse",
+            f"refs/heads/{branch}",
+        )
+        self.assertEqual(remote_sha, second_commit["head"])
+        self.manager.cleanup(workspace_id)
+
     def test_diff_includes_untracked_files(self) -> None:
         created = self.manager.create_workspace("team/project", task_slug="untracked")
         workspace_id = str(created["workspace_id"])
