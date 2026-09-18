@@ -109,6 +109,18 @@ class WorkspaceManagerTests(unittest.TestCase):
         cleaned = self.manager.cleanup(workspace_id)
         self.assertTrue(cleaned["removed"])
 
+    def test_diff_includes_untracked_files(self) -> None:
+        created = self.manager.create_workspace("team/project", task_slug="untracked")
+        workspace_id = str(created["workspace_id"])
+        self.manager.write_file(workspace_id, "NEW_FILE.md", "hello\n")
+
+        diff = self.manager.diff(workspace_id)
+        self.assertIn("### UNTRACKED", str(diff["diff"]))
+        self.assertIn("NEW_FILE.md", str(diff["diff"]))
+        self.assertIn("+hello", str(diff["diff"]))
+
+        self.manager.cleanup(workspace_id, force=True)
+
     def test_apply_patch_and_path_escape_rejection(self) -> None:
         created = self.manager.create_workspace("team/project", task_slug="patch")
         workspace_id = str(created["workspace_id"])
