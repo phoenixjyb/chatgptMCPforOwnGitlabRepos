@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0.2.0-dev]
   pull_request:
 
 permissions:
@@ -27,7 +27,18 @@ jobs:
         run: uv sync
 
       - name: Compile Python sources
-        run: uv run python -m py_compile server.py smoke_test.py
+        run: |
+          uv run python -m py_compile server.py smoke_test.py
+          uv run python -m py_compile src/gitlab_agent/*.py tests/*.py
+
+      - name: Run v0.2 local workflow tests
+        run: uv run python -m unittest discover -s tests -v
+
+      - name: Enforce zero OpenAI model API usage in project code
+        shell: bash
+        run: |
+          ! grep -R --include='*.py' -E '(^|[[:space:]])(from[[:space:]]+openai|import[[:space:]]+openai)|api\.openai\.com/v1' .
+          ! grep -Ei '^[[:space:]]*"openai([<=>~!]|")' pyproject.toml
 
       - name: Check that secrets are not committed
         shell: bash
