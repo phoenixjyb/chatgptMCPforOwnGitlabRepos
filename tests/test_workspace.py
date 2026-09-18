@@ -50,6 +50,7 @@ class WorkspaceManagerTests(unittest.TestCase):
 
         self.remote = remote
         self.settings = AgentSettings(
+            config_file=root / ".env",
             gitlab_base_url="https://gitlab.example.invalid",
             api_token="",
             git_token="",
