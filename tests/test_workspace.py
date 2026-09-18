@@ -79,6 +79,37 @@ class WorkspaceManagerTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
+    def test_read_remote_text_file_without_worktree(self) -> None:
+        seed_config = self.temp.name
+        created = self.manager.create_workspace("team/project", task_slug="seed-contract")
+        workspace_id = str(created["workspace_id"])
+        self.manager.write_file(
+            workspace_id,
+            ".actualcoder.yaml",
+            "version: 1\nproject:\n  base_branch: main\n",
+        )
+        self.manager.commit(workspace_id, "Add ActualCoder config")
+        pushed = self.manager.push(workspace_id)
+        branch = str(pushed["workspace"]["branch"])
+        self.manager.cleanup(workspace_id)
+
+        result = self.manager.read_remote_text_file(
+            "team/project",
+            ".actualcoder.yaml",
+            ref=branch,
+        )
+        self.assertTrue(result["exists"])
+        self.assertIn("version: 1", str(result["content"]))
+        self.assertEqual(result["ref"], branch)
+
+        missing = self.manager.read_remote_text_file(
+            "team/project",
+            ".does-not-exist",
+            ref=branch,
+        )
+        self.assertFalse(missing["exists"])
+        self.assertIsNone(missing["content"])
+
     def test_git_askpass_helper_is_platform_appropriate(self) -> None:
         settings = replace(self.settings, git_token="fake-token")
         manager = WorkspaceManager(
