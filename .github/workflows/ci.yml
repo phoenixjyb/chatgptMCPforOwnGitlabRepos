@@ -85,5 +85,12 @@ jobs:
           uv run python -m py_compile server.py smoke_test.py
           uv run python -m py_compile src/gitlab_agent/*.py tests/*.py
 
+      - name: Parse native Windows PowerShell scripts
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          [scriptblock]::Create((Get-Content -Raw .\scripts\install_user.ps1)) | Out-Null
+          [scriptblock]::Create((Get-Content -Raw .\run_mcp.ps1)) | Out-Null
+
       - name: Run workflow tests
         run: uv run python -m unittest discover -s tests -v
