@@ -64,9 +64,11 @@ class FakeStartManager:
         *,
         base_ref: str | None = None,
         task_slug: str = "task",
+        refresh_remote: bool = True,
     ) -> dict[str, object]:
         self.created_base_ref = base_ref
         self.created_task_slug = task_slug
+        self.refresh_remote = refresh_remote
         worktree = self.root / "worktree"
         worktree.mkdir(parents=True, exist_ok=True)
         return {
@@ -350,6 +352,7 @@ mr:
                 )
 
         self.assertEqual(manager.created_base_ref, "develop")
+        self.assertFalse(manager.refresh_remote)
         self.assertEqual(result["agent"], "copilot")
         self.assertEqual(result["agent_requested"], "auto")
         self.assertEqual(result["effective_base_ref"], "develop")
