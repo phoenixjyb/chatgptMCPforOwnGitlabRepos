@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.3.0-alpha.2 - Unreleased
+## 0.3.0-alpha.3 - Unreleased
+
+- Add opt-in `--agent auto` to task, resume, branch recovery, and MR recovery handoffs.
+- Read `agents.preferred` from the remote `.actualcoder.yaml` when auto-selection is requested.
+- Use `codex → copilot` as the default installed-backend fallback when no project preference is present.
+- Fall back to another installed supported backend when preferred backends are unavailable.
+- Fail before workspace creation/recovery if no supported coding backend is installed.
+- Keep explicit `--agent codex|copilot` behavior backward compatible.
+- Report `agent_requested`, selected agent, candidates, installed candidates, project-config provenance, and human-readable selection reason.
+- Selection only checks executable presence; it does not invoke a coding model or consume quota.
+- Add auto-selection regression coverage and team documentation.
+
+## 0.3.0-alpha.2
 
 - Add optional repository-local `.actualcoder.yaml` project contracts.
 - Add `actual-coder project-config PROJECT [--ref REF] [--validate]`.
