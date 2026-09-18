@@ -354,6 +354,62 @@ skip  = 可选项未配置或显式跳过
 - stale / malformed workspace state；
 - GitLab API 登录是否成功。
 
+### 8.1 项目级 `.actualcoder.yaml`
+
+项目可以在仓库根目录放置：
+
+```text
+.actualcoder.yaml
+```
+
+它用于声明项目自己的 coding contract，例如：
+
+- 默认 base branch；
+- Codex / Copilot 的偏好顺序；
+- validation command；
+- protected paths；
+- project-specific instructions；
+- 项目依赖的 executable；
+- MR target branch / title prefix。
+
+团队成员可以在**不创建 worktree**的情况下验证远端配置：
+
+```bash
+actual-coder project-config team/project-a --validate
+```
+
+指定 ref：
+
+```bash
+actual-coder project-config team/project-a \
+  --ref develop \
+  --validate
+```
+
+如果项目没有 `.actualcoder.yaml`，这是合法情况；ActualCoder 会继续使用用户级/default 配置。
+
+安全规则：repository-owned config **不能自己扩展 executable allowlist**。例如项目写：
+
+```yaml
+validation:
+  commands:
+    - argv: [bash, -c, something]
+```
+
+但开发者的 `GITLAB_ALLOWED_EXECUTABLES` 没有允许 `bash`，则：
+
+```bash
+actual-coder project-config ... --validate
+```
+
+必须失败。
+
+示例见仓库根目录：
+
+```text
+.actualcoder.example.yaml
+```
+
 其中：
 
 ```bash
@@ -1114,6 +1170,7 @@ actual-coder agents
 - [ ] `actual-coder config` 显示正确 GitLab 与 allowlist；
 - [ ] `actual-coder agents` 能看到至少一个 backend；
 - [ ] `actual-coder doctor` 无 FAIL；
+- [ ] 目标项目如存在 `.actualcoder.yaml`，则 `actual-coder project-config <project> --validate` 通过；
 - [ ] `GITLAB_TOKEN` 不在任何 Git tracked file 中；
 - [ ] `GITLAB_GIT_TOKEN` 不在任何 Git tracked file 中；
 - [ ] `uv run python scripts/check_repo_secrets.py` 通过；
