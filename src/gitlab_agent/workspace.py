@@ -441,9 +441,16 @@ class WorkspaceManager:
             check=False,
         )
         if existing.returncode == 0:
+            worktree_list = self._run_git(
+                ["--git-dir", str(repo_path), "worktree", "list", "--porcelain"]
+            ).stdout
+            if f"branch refs/heads/{branch}\n" in worktree_list:
+                raise RuntimeError(
+                    f"Branch {branch!r} is already checked out in a managed Git worktree. "
+                    "Use gitlab-agent list/resume instead of checkout-branch/checkout-mr."
+                )
             self._run_git(
-                ["--git-dir", str(repo_path), "branch", "-D", branch],
-                check=False,
+                ["--git-dir", str(repo_path), "branch", "-D", branch]
             )
 
         self._progress(f"creating worktree {workspace_id} from origin/{branch} ...")
