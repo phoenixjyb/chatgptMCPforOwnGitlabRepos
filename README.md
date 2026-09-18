@@ -62,6 +62,7 @@ Other references:
 - [ChatGPT MCP setup — English](docs/SETUP_TUTORIAL.md)
 - [ChatGPT MCP 配置教程 — 中文](docs/SETUP_TUTORIAL_CN.md)
 - [v0.2 architecture](docs/V0.2_WRITE_ACCESS_DESIGN.md)
+- [v0.3 分块开发路线](docs/V0.3_ROADMAP_CN.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Security](SECURITY.md)
 - [Changelog](CHANGELOG.md)
