@@ -794,6 +794,74 @@ merge_request_url: ...
 
 ---
 
+## 17.1 推荐：用 `actual-coder finish` 收尾任务
+
+Coding backend 完成改动后，先做 dry-run：
+
+```bash
+actual-coder finish "$WS" \
+  --message "fix: describe the change" \
+  --dry-run
+```
+
+dry-run 会：
+
+```text
+读取 workspace base 的 .actualcoder.yaml
+→ 执行 configured validation
+→ 检查 changed paths
+→ 检查 protected paths
+→ 扫描新增 diff 中的高风险 credential
+→ 输出 diff
+→ 计划 commit
+→ 决定 first push / existing MR update
+```
+
+**不会 commit，不会 push。**
+
+如果结果：
+
+```text
+ok: true
+blockers: []
+```
+
+再执行：
+
+```bash
+actual-coder finish "$WS" \
+  --message "fix: describe the change"
+```
+
+ActualCoder 会先打印同一类 plan，再要求人工确认，然后：
+
+- dirty workspace → commit；
+- 第一次 push → `push-mr` 创建 MR；
+- 已有关联 MR → `push-update` 更新同一个 MR。
+
+安全 gate：
+
+- required validation 失败：阻断；
+- `.actualcoder.yaml` 永远视为 protected path；
+- 项目声明的 protected path 默认阻断；
+- secret scan 命中默认阻断；
+- `--yes` **只跳过人工确认**，不能绕过其他 gate；
+- protected path 必须单独 `--allow-protected`；
+- secret finding 必须单独 `--allow-secret-match`，且仅应在人工确认确实为误报/测试值后使用；
+- 不自动 merge MR。
+
+CI/脚本场景如果已经审阅 plan，可显式：
+
+```bash
+actual-coder finish "$WS" \
+  --message "fix: describe the change" \
+  --yes
+```
+
+但团队日常开发默认推荐保留交互确认。
+
+---
+
 # 第六部分：继续已有 MR
 
 ## 18. 同一 workspace 再修改
