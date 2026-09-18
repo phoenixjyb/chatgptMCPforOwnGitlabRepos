@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import AgentSettings
+from .doctor import run_doctor
 from .gitlab_api import GitLabAPI
 from .runner import CommandRunner
 from .workspace import WorkspaceManager
@@ -191,6 +192,17 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("config", help="Show effective non-secret configuration")
+
+    p = sub.add_parser(
+        "doctor",
+        help="Run non-destructive environment, configuration, GitLab, and workspace diagnostics",
+    )
+    p.add_argument(
+        "--offline",
+        action="store_true",
+        help="Skip live GitLab API connectivity/authentication check",
+    )
+
     sub.add_parser(
         "agents",
         help="Show supported coding backends and whether their CLI executable is installed",
@@ -347,6 +359,11 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "doctor":
+            result = run_doctor(offline=args.offline)
+            _print(result)
+            return 0 if bool(result.get("ok")) else 1
+
         settings = AgentSettings.load()
         manager = WorkspaceManager(settings)
         runner = CommandRunner(settings, manager)
