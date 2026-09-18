@@ -10,6 +10,7 @@ from typing import Any
 
 from .config import AgentSettings
 from .doctor import run_doctor
+from .finish import build_finish_plan, execute_finish
 from .gitlab_api import GitLabAPI
 from .project_config import PROJECT_CONFIG_FILENAME, parse_project_config
 from .runner import CommandRunner
@@ -749,6 +750,48 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
         help="Optional MR description file; '-' reads stdin",
     )
 
+    p = sub.add_parser(
+        "finish",
+        help="Validate, review, commit, and push/create-or-update the workspace Merge Request",
+    )
+    p.add_argument("workspace_id")
+    p.add_argument(
+        "-m",
+        "--message",
+        default=None,
+        help="Commit message when the workspace has uncommitted changes",
+    )
+    p.add_argument(
+        "--title",
+        default=None,
+        help="MR title for the first push; defaults to the commit/latest subject",
+    )
+    p.add_argument(
+        "--description-file",
+        default=None,
+        help="Optional MR description file; '-' reads stdin",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run validation/security/review planning without committing or pushing",
+    )
+    p.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip the interactive confirmation after an unblocked finish plan",
+    )
+    p.add_argument(
+        "--allow-protected",
+        action="store_true",
+        help="Explicitly allow changes to project/built-in protected paths",
+    )
+    p.add_argument(
+        "--allow-secret-match",
+        action="store_true",
+        help="Explicitly override high-signal secret findings after manual review",
+    )
+
     p = sub.add_parser("cleanup", help="Remove a managed worktree")
     p.add_argument("workspace_id")
     p.add_argument("--force", action="store_true")
@@ -1030,6 +1073,71 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 title=args.title,
                 description=description,
             )
+        elif args.command == "finish":
+            description = (
+                _read_text_arg(args.description_file)
+                if args.description_file is not None
+                else ""
+            )
+            plan = build_finish_plan(
+                settings=settings,
+                manager=manager,
+                runner=runner,
+                workspace_id=args.workspace_id,
+                commit_message=args.message,
+                mr_title=args.title,
+                mr_description=description,
+                allow_protected=args.allow_protected,
+                allow_secret_match=args.allow_secret_match,
+            )
+            result = {
+                "dry_run": args.dry_run,
+                **plan,
+            }
+            _print(result)
+
+            if not bool(plan.get("ok")):
+                return 1
+            if args.dry_run:
+                return 0
+
+            if not args.yes:
+                if not sys.stdin.isatty():
+                    raise RuntimeError(
+                        "finish requires interactive confirmation on a TTY; "
+                        "use --yes only after reviewing the emitted finish plan"
+                    )
+                print(
+                    "[actual-coder] Finish plan is unblocked. "
+                    "Proceed with commit/push/MR update? [y/N] ",
+                    file=sys.stderr,
+                    end="",
+                    flush=True,
+                )
+                answer = sys.stdin.readline().strip().lower()
+                if answer not in {"y", "yes"}:
+                    _print(
+                        {
+                            "workspace_id": args.workspace_id,
+                            "cancelled": True,
+                            "message": "No Git write was performed.",
+                        }
+                    )
+                    return 1
+
+            executed = execute_finish(
+                manager=manager,
+                workspace_id=args.workspace_id,
+                plan=plan,
+            )
+            _print(
+                {
+                    "dry_run": False,
+                    "executed": True,
+                    **executed,
+                }
+            )
+            return 0
         elif args.command == "cleanup":
             result = manager.cleanup(args.workspace_id, force=args.force)
         else:
