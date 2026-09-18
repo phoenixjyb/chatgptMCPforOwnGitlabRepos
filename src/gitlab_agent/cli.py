@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -62,7 +63,11 @@ def _agent_prompt(
             "push-mr for the first push if an MR is desired."
         )
     else:
-        next_step = "Inspect the repository, make the requested change, and run relevant tests."
+        next_step = (
+            "Follow the stated goal within this workspace. Inspect the relevant code first; "
+            "only modify files if the goal requires a code change. Run relevant validation "
+            "for any changes you make."
+        )
 
     if agent not in SUPPORTED_CODING_AGENTS:
         raise ValueError(
@@ -125,6 +130,28 @@ def _handoff(
     return result
 
 
+def _available_agents() -> dict[str, object]:
+    agents: list[dict[str, object]] = []
+    for name, executable in sorted(SUPPORTED_CODING_AGENTS.items()):
+        resolved = shutil.which(executable)
+        agents.append(
+            {
+                "agent": name,
+                "executable": executable,
+                "installed": resolved is not None,
+                "path": resolved,
+                "authentication_checked": False,
+            }
+        )
+    return {
+        "agents": agents,
+        "note": (
+            "Availability checks only whether the CLI executable is installed. "
+            "It does not invoke the backend, verify authentication, or consume model quota."
+        ),
+    }
+
+
 def _safe_config(settings: AgentSettings) -> dict[str, object]:
     return {
         "config_file": str(settings.config_file),
@@ -163,6 +190,10 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("config", help="Show effective non-secret configuration")
+    sub.add_parser(
+        "agents",
+        help="Show supported coding backends and whether their CLI executable is installed",
+    )
 
     p = sub.add_parser("create", help="Create an isolated worktree")
     p.add_argument("project", help="GitLab path_with_namespace, e.g. team/project")
@@ -322,6 +353,8 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
 
         if args.command == "config":
             result = _safe_config(settings)
+        elif args.command == "agents":
+            result = _available_agents()
         elif args.command == "create":
             result = manager.create_workspace(
                 args.project,
