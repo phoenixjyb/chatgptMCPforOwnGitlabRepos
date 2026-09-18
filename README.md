@@ -1,26 +1,28 @@
-# ChatGPT MCP for Self-Hosted GitLab Repositories
+# ChatGPT MCP for Self-Hosted GitLab + ActualCoder
 
 [![CI](https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos/actions/workflows/ci.yml/badge.svg)](https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-This project now has **two complementary pieces**:
+A practical toolchain for working with **private/self-hosted GitLab** from ChatGPT and local coding agents without exposing GitLab directly to the public Internet.
 
-1. **Read-only ChatGPT MCP** — inspect private/self-hosted GitLab repositories from normal ChatGPT conversations.
-2. **ActualCoder** — an agent-neutral local coding layer that can hand an isolated GitLab worktree to Codex CLI, GitHub Copilot CLI, or future coding agents while `gitlab-agent` owns repository/MR lifecycle operations.
+The repository has two complementary layers:
 
-The v0.2 design deliberately avoids OpenAI model API calls from this project.
+1. **Read-only ChatGPT MCP** — lets normal ChatGPT conversations inspect GitLab repositories, merge requests, pipelines, jobs, and logs.
+2. **ActualCoder** — creates isolated local Git worktrees and hands them to Codex CLI or GitHub Copilot CLI while `gitlab-agent` owns the GitLab branch/MR lifecycle.
+
+The repository itself does **not** call OpenAI model APIs.
 
 ## Architecture
 
 ```text
-Normal ChatGPT Pro
+Normal ChatGPT
     │
-    │ read/fetch MCP
+    │ read-only MCP
     ▼
-OpenAI Secure MCP Tunnel
+Secure MCP Tunnel
     │
     ▼
-server.py (read-only)
+server.py
     │
     ▼
 Self-hosted GitLab
@@ -37,37 +39,74 @@ future agents ───┘        │
                           ├── diff
                           ├── commit
                           ├── push / push-update
-                          ├── create GitLab MR
+                          ├── create Merge Request
                           └── recover existing MR/branch
+                               │
+                               ▼
+                       Self-hosted GitLab
 ```
 
-The GitLab server does **not** need to be directly reachable from the public Internet for the ChatGPT read MCP. The machine running the MCP/tunnel only needs to reach GitLab plus OpenAI over outbound HTTPS.
+## Recommended team entry point
 
-## v0.1 read-only MCP tools
+For team installation, configuration, daily workflow, MR recovery, security rules, and troubleshooting, use:
 
-- `gitlab_whoami`
-- `list_projects`
-- `get_repository_tree`
-- `get_file`
-- `search_code`
-- `get_merge_request`
-- `get_merge_request_diff`
-- `get_pipelines`
-- `get_pipeline_jobs`
-- `get_job_log`
+**[团队安装、配置与使用完整指南（中文）](docs/TEAM_GUIDE_CN.md)**
 
-## v0.2 ActualCoder
+Other references:
 
-`actual-coder` is the primary user-facing agent-neutral command. `gitlab-agent` remains the lower-level GitLab/worktree controller. The older `codingagent` command remains available as a compatibility alias during the alpha series.
+- [ActualCoder Quickstart](docs/ACTUAL_CODER_QUICKSTART.md)
+- [ChatGPT MCP setup — English](docs/SETUP_TUTORIAL.md)
+- [ChatGPT MCP 配置教程 — 中文](docs/SETUP_TUTORIAL_CN.md)
+- [v0.2 architecture](docs/V0.2_WRITE_ACCESS_DESIGN.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Security](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 
-Supported coding backends:
+## Quick start: ActualCoder
 
-```text
-codex
-copilot
+Requirements:
+
+- macOS or Linux;
+- Git;
+- Python 3.10+;
+- [uv](https://docs.astral.sh/uv/);
+- network access to the target GitLab;
+- at least one coding backend: Codex CLI or GitHub Copilot CLI.
+
+Clone and prepare:
+
+```bash
+git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
+cd chatgptMCPforOwnGitlabRepos
+
+git checkout v0.2.0-dev
+cp .env.example .env
+chmod 600 .env
+# edit .env
+
+uv sync
+bash scripts/install_user.sh
 ```
 
-Example handoff:
+Install the stable per-user config:
+
+```bash
+mkdir -p ~/.config/gitlab-agent
+cp .env ~/.config/gitlab-agent/.env
+chmod 700 ~/.config/gitlab-agent
+chmod 600 ~/.config/gitlab-agent/.env
+```
+
+Verify:
+
+```bash
+actual-coder --help
+actual-coder config
+actual-coder agents
+gitlab-agent --help
+```
+
+Start a coding task:
 
 ```bash
 actual-coder task team/project-a \
@@ -77,208 +116,178 @@ actual-coder task team/project-a \
   --goal "Fix the timeout bug and add regression coverage"
 ```
 
-The result includes `agent`, `agent_command`, `agent_prompt`, and the managed workspace metadata.
-
-Current low-level CLI commands:
-
-```text
-gitlab-agent config
-gitlab-agent create
-gitlab-agent task
-gitlab-agent list
-gitlab-agent status
-gitlab-agent resume
-gitlab-agent path
-gitlab-agent files
-gitlab-agent read
-gitlab-agent write
-gitlab-agent apply-patch
-gitlab-agent diff
-gitlab-agent run
-gitlab-agent commit
-gitlab-agent push
-gitlab-agent push-update
-gitlab-agent push-mr
-gitlab-agent checkout-branch
-gitlab-agent checkout-mr
-gitlab-agent cleanup
-```
-
-### Example workflow
+Or use Codex:
 
 ```bash
-gitlab-agent create team/project-a \
+actual-coder task team/project-a \
+  --agent codex \
   --base-ref main \
-  --task fix-timeout
+  --task fix-timeout \
+  --goal "Fix the timeout bug and add regression coverage"
 ```
 
-The command returns JSON containing a `workspace_id`.
+ActualCoder returns a managed `workspace_id`, worktree path, backend launch command, and a ready-to-use agent prompt.
 
-Then:
+## Daily GitLab workflow
+
+After the coding backend edits the managed worktree:
 
 ```bash
-gitlab-agent status <workspace-id>
-gitlab-agent read <workspace-id> src/example.py
+WS=<workspace-id>
 
-cat change.patch | gitlab-agent apply-patch <workspace-id>
-
-gitlab-agent run <workspace-id> -- uv run pytest
-
-gitlab-agent diff <workspace-id>
-
-gitlab-agent commit <workspace-id> \
-  -m "Fix timeout handling"
-
-gitlab-agent push-mr <workspace-id> \
-  --target main \
-  --title "Fix timeout handling" \
-  --description-file mr.md
+gitlab-agent status "$WS"
+gitlab-agent run "$WS" -- <allowed-test-command>
+gitlab-agent diff "$WS"
+gitlab-agent commit "$WS" -m "Describe the change"
 ```
 
-The generated feature branch uses a safe prefix such as:
+Create the first MR:
+
+```bash
+gitlab-agent push-mr "$WS" \
+  --target main \
+  --title "Describe the change" \
+  --description-file /tmp/mr.md
+```
+
+Continue an existing MR:
+
+```bash
+gitlab-agent push-update "$WS"
+```
+
+Recover an MR after local cleanup or on another machine:
+
+```bash
+actual-coder checkout-mr team/project-a 123 \
+  --agent copilot \
+  --goal "Continue this MR and address review feedback"
+```
+
+Switch coding backend without changing Git state:
+
+```bash
+actual-coder resume "$WS" --agent copilot --goal "Continue the task"
+actual-coder resume "$WS" --agent codex   --goal "Continue the task"
+```
+
+## Read-only ChatGPT MCP tools
+
+The ChatGPT-facing MCP remains read-only and exposes:
 
 ```text
-chatgpt/fix-timeout-a1b2c3d4
+gitlab_whoami
+list_projects
+get_repository_tree
+get_file
+search_code
+get_merge_request
+get_merge_request_diff
+get_pipelines
+get_pipeline_jobs
+get_job_log
 ```
 
-The engine does not force-push and does not push directly to the base branch.
+For setup, see [docs/SETUP_TUTORIAL_CN.md](docs/SETUP_TUTORIAL_CN.md).
 
-## Quick start
+## Credentials and permissions
 
-```bash
-git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
-cd chatgptMCPforOwnGitlabRepos
+Keep credentials outside Git.
 
-cp .env.example .env
-chmod 600 .env
-# edit .env
-
-uv sync
-```
-
-Test GitLab connectivity:
-
-```bash
-uv run python smoke_test.py
-```
-
-Test the read MCP:
-
-```bash
-uv run mcp dev server.py
-```
-
-Test the v0.2 CLIs:
-
-```bash
-uv run actual-coder --help
-uv run codingagent --help   # compatibility alias
-uv run gitlab-agent --help
-```
-
-### Install ActualCoder for use from any worktree
-
-Install the package as an editable user tool:
-
-```bash
-bash scripts/install_user.sh
-```
-
-Then copy your working local configuration once:
-
-```bash
-mkdir -p ~/.config/gitlab-agent
-cp .env ~/.config/gitlab-agent/.env
-chmod 600 ~/.config/gitlab-agent/.env
-```
-
-After that, from any directory:
-
-```bash
-actual-coder --help
-actual-coder config
-codingagent --help   # compatibility alias
-gitlab-agent --help
-```
-
-The global CLI first uses `GITLAB_AGENT_ENV_FILE` when explicitly set, otherwise
-`~/.config/gitlab-agent/.env`, then falls back to a local `.env`.
-
-## Credentials
-
-For the read MCP:
+Recommended separation:
 
 ```text
 GITLAB_TOKEN
-```
+  read_api + read_repository
+  Used by the read MCP and GitLab metadata lookups such as checkout-mr.
 
-Recommended scopes:
-
-```text
-read_api
-read_repository
-```
-
-For v0.2 Git clone/push, a separate credential is recommended:
-
-```text
 GITLAB_GIT_TOKEN
+  write_repository
+  Used for Git clone/fetch/push.
+  If unset, Git operations fall back to GITLAB_TOKEN.
 ```
 
-For push/MR creation it needs GitLab `write_repository`.
+Restrict writable projects:
 
-The initial MR can be created during `git push` using GitLab push options, so the v0.2 happy path does not require broad GitLab `api` write scope.
+```bash
+GITLAB_ALLOWED_PROJECTS=team/project-a,team/project-b
+GITLAB_REQUIRE_WRITE_ALLOWLIST=true
+```
 
-## Zero OpenAI model API usage
+The engine does not force-push and does not push directly to the configured base branch.
 
-This repository intentionally:
+## Secret / credential audit
 
-- does not depend on the OpenAI Python SDK;
-- does not call OpenAI model endpoints;
-- does not need `OPENAI_API_KEY` for `gitlab-agent`;
-- keeps the ChatGPT read MCP separate from local coding execution.
+Never commit:
 
-CI checks project Python/package code to help prevent accidental model API integration.
+- `.env`;
+- real GitLab/GitHub/model API tokens;
+- Secure MCP control-plane credentials;
+- private keys/certificates;
+- developer-specific deployment information that should remain private.
 
-If you use Codex and want to avoid API billing, sign Codex in with your ChatGPT subscription rather than configuring it with an API key.
+Run before sharing changes:
 
-## Security defaults
+```bash
+uv run python scripts/check_repo_secrets.py
+```
 
-- `.env` is ignored by Git.
-- Project allowlisting is required by default for v0.2 workspaces.
-- Feature branches use a configured prefix.
-- All workspace paths are anchored under a managed worktree root.
-- Build/test commands use an executable allowlist and `shell=False`.
-- Obvious token/secret/password/API-key environment variables are stripped from build/test subprocesses.
-- The host runner is **not a full filesystem/container sandbox**; use a VM/container for untrusted repositories.
-- Never commit GitLab tokens, OpenAI tunnel runtime keys, or other secrets.
+For a release/security audit:
 
-## Documentation
+```bash
+uv run python scripts/check_repo_secrets.py --history
+```
 
-- **English setup guide:** [docs/SETUP_TUTORIAL.md](docs/SETUP_TUTORIAL.md)
-- **中文配置教程:** [docs/SETUP_TUTORIAL_CN.md](docs/SETUP_TUTORIAL_CN.md)
-- **ActualCoder quickstart:** [docs/ACTUAL_CODER_QUICKSTART.md](docs/ACTUAL_CODER_QUICKSTART.md)
-- **Legacy CodingAgent quickstart:** [docs/CODINGAGENT_QUICKSTART.md](docs/CODINGAGENT_QUICKSTART.md)
-- **Legacy v0.2 Codex/local coding quickstart:** [docs/V0.2_CODEX_QUICKSTART.md](docs/V0.2_CODEX_QUICKSTART.md)
-- **v0.2 architecture:** [docs/V0.2_WRITE_ACCESS_DESIGN.md](docs/V0.2_WRITE_ACCESS_DESIGN.md)
-- **Troubleshooting:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-- **Security:** [SECURITY.md](SECURITY.md)
-- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+CI checks the full available Git history.
 
-## HTTP GitLab instances
+## Security boundaries
 
-The MCP/CLI-to-GitLab hop can use HTTP if that is how your internal GitLab is deployed. This is functional but not encrypted. Keep the host and GitLab on a trusted network/VPN and migrate to HTTPS when practical.
+- Explicit project allowlist by default.
+- Generated/recovered branches must use the configured safe prefix.
+- No direct base-branch push.
+- No force push.
+- No merge/approve/remote-delete operation.
+- Build/test runner uses `shell=False`, executable allowlisting, timeout/output caps, and strips obvious secret variables.
+- Git credentials are passed through temporary `GIT_ASKPASS`, not embedded in remote URLs.
+- The host runner is **not a VM/container sandbox**. Use a container/VM for untrusted repositories.
+- HTTP GitLab works, but tokens/source traffic are not encrypted on that hop. Prefer HTTPS or a trusted private network/VPN.
+
+See [SECURITY.md](SECURITY.md) for details.
+
+## Compatibility commands
+
+The canonical user-facing command is now:
+
+```bash
+actual-coder
+```
+
+During the alpha series, the older alias remains available:
+
+```bash
+codingagent
+```
+
+The low-level controller remains:
+
+```bash
+gitlab-agent
+```
+
+## Current status
+
+- `v0.1.0`: read-only ChatGPT MCP release.
+- `v0.2.0-dev`: active ActualCoder development branch.
+- Current package version: `0.2.0a5`.
+- Real deployment validation has covered:
+  - isolated workspace creation;
+  - controlled edit/test/diff;
+  - commit and MR creation;
+  - repeated pushes to the same MR;
+  - cleanup and MR reconstruction;
+  - switching Codex/Copilot handoffs;
+  - a real C++ coding task completed through GitHub Copilot CLI.
 
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
-
-## Status
-
-- `v0.1.0`: tagged read-only release.
-- `v0.2.0-dev`: active development branch for ActualCoder.
-- Package version on the v0.2 branch: `0.2.0a5`.
-- Alpha.2 adds global installation, task/resume handoffs, and iterative pushes to an existing MR branch.
-- Alpha.3 adds reconstruction of local workspaces from existing remote branches or GitLab MRs after cleanup/restart.
-- Alpha.4 introduced the agent-neutral handoff abstraction and first-class `codex` / `copilot` backend selection.
-- Alpha.5 renames the primary user-facing CLI to `actual-coder`; `codingagent` remains a compatibility alias.
