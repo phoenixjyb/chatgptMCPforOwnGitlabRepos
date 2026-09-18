@@ -99,3 +99,94 @@ GITLAB_ALLOWED_PROJECTS=123,group/project-a,group/project-b
 ```
 
 Use either the numeric project ID or exact `path_with_namespace`.
+
+
+## `actual-coder: command not found`
+
+From the tool repository:
+
+```bash
+bash scripts/install_user.sh
+```
+
+If the command is still missing:
+
+```bash
+uv tool update-shell
+```
+
+Open a new terminal and verify:
+
+```bash
+which actual-coder
+actual-coder --help
+```
+
+## ActualCoder cannot find configuration
+
+The recommended per-user config is:
+
+```text
+~/.config/gitlab-agent/.env
+```
+
+Check the effective non-secret configuration:
+
+```bash
+actual-coder config
+```
+
+The config lookup order is `GITLAB_AGENT_ENV_FILE`, then `~/.config/gitlab-agent/.env`, then a local `.env`.
+
+## Git clone/fetch/push returns 502 on an internal GitLab
+
+A machine-wide proxy is a common cause. For a GitLab that should be reached directly:
+
+```bash
+GITLAB_TRUST_ENV=false
+GITLAB_GIT_TRUST_ENV=false
+```
+
+The Git setting also clears Git's configured `http.proxy` for managed clone/fetch/push operations.
+
+## Build/test command is rejected
+
+`gitlab-agent run` only allows executables listed in `GITLAB_ALLOWED_EXECUTABLES`.
+
+Inspect:
+
+```bash
+actual-coder config
+```
+
+Add only the commands your project genuinely needs (for example `colcon` or `ctest` for some ROS/C++ projects).
+
+## Codex usage is exhausted
+
+Do not rebuild the workspace. Switch the same workspace to another backend:
+
+```bash
+actual-coder resume "$WS" \
+  --agent copilot \
+  --goal "Continue the current task"
+```
+
+Git state and any existing MR remain unchanged.
+
+## Local workspace was cleaned up but the MR still exists
+
+Reconstruct it:
+
+```bash
+actual-coder checkout-mr team/project-a 123 \
+  --agent copilot \
+  --goal "Continue this MR"
+```
+
+After further commits, use:
+
+```bash
+gitlab-agent push-update "$WS"
+```
+
+For the full team workflow, see [TEAM_GUIDE_CN.md](TEAM_GUIDE_CN.md).
