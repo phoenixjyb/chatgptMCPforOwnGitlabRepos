@@ -132,6 +132,19 @@ class ActualCoderCLITests(unittest.TestCase):
         self.assertEqual(args.ref, "develop")
         self.assertTrue(args.validate)
 
+        local = parser.parse_args(
+            [
+                "project-config",
+                "team/project",
+                "--file",
+                ".actualcoder.example.yaml",
+                "--validate",
+            ]
+        )
+        self.assertEqual(local.file, ".actualcoder.example.yaml")
+        self.assertIsNone(local.ref)
+        self.assertTrue(local.validate)
+
     def test_agent_prompt_rejects_unknown_backend(self) -> None:
         status = FakeManager().status("abc123")
         with self.assertRaises(ValueError):
