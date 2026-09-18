@@ -26,6 +26,9 @@ jobs:
       - name: Resolve dependencies
         run: uv sync
 
+      - name: Verify packaged CLI
+        run: uv run gitlab-agent --help
+
       - name: Compile Python sources
         run: |
           uv run python -m py_compile server.py smoke_test.py
