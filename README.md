@@ -294,7 +294,7 @@ gitlab-agent
 
 - `v0.1.0`: read-only ChatGPT MCP release.
 - `main`: recommended team-consumption branch.
-- Current package version: `0.2.0`.
+- Current package version: `0.2.1`.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
