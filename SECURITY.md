@@ -1,25 +1,55 @@
 # Security notes
 
-This project bridges ChatGPT to private source code. Treat the MCP host and its credentials as security-sensitive.
+This project bridges ChatGPT/Codex to private source code. Treat the MCP host, local worktrees, and credentials as security-sensitive.
 
 ## Never commit
 
 - `.env`
 - a real `GITLAB_TOKEN`
+- a real `GITLAB_GIT_TOKEN`
 - `CONTROL_PLANE_API_KEY`
+- `OPENAI_API_KEY`
 - private certificates/keys
 - copied CI logs or source files containing secrets
 
 ## Least privilege
 
-Use a dedicated read-only identity/token and restrict projects with `GITLAB_ALLOWED_PROJECTS`.
+For the read MCP, use a dedicated read-only identity/token and restrict projects with `GITLAB_ALLOWED_PROJECTS`.
 
-The server intentionally exposes no write tools. If you add write actions later, review each tool, require the minimum GitLab scopes, and consider separating read-only and write-capable deployments.
+For v0.2 Git writes, prefer a separate Git credential with `write_repository` rather than upgrading the read API token to broad `api` scope.
 
-## HTTP GitLab
+## v0.2 workspace safety
 
-HTTP can work on a trusted private network, but it does not encrypt the MCP-host-to-GitLab hop. Tokens and repository contents can be observed by an attacker on that network segment. Prefer HTTPS when possible.
+The local coding engine:
+
+- creates isolated worktrees under `GITLAB_WORKSPACE_ROOT`;
+- generates feature branches with a configured prefix;
+- refuses direct base-branch pushes;
+- never force-pushes;
+- requires a project allowlist by default;
+- blocks file paths escaping the worktree;
+- uses dedicated Git operations instead of arbitrary Git shell commands.
+
+## Build/test execution is not a sandbox
+
+`gitlab-agent run` constrains the executable, cwd, timeout, output, and environment, and strips obvious secret variables.
+
+It does **not** provide OS/container filesystem isolation. Repository build scripts are code execution. A malicious Makefile, package lifecycle script, Python test, or binary can attempt to read other host files using absolute paths or make network requests.
+
+Run untrusted repositories in a container/VM or on a disposable host.
 
 ## Prompt injection
 
-Repository files, MR descriptions, issues, and CI logs are untrusted content. They can contain instructions intended to manipulate an AI system. Keep the MCP read-only, review any future write capability carefully, and do not expose unrelated secrets to the MCP process.
+Repository files, MR descriptions, issues, build output, and CI logs are untrusted content. They can contain instructions intended to manipulate an AI system.
+
+Keep the ChatGPT MCP read-only on personal Pro, review Codex actions, preserve project/branch allowlists, and avoid exposing unrelated secrets to build/test processes.
+
+## HTTP GitLab
+
+HTTP can work on a trusted private network, but it does not encrypt the MCP/CLI host-to-GitLab hop. Tokens and repository contents can be observed by an attacker on that network segment. Prefer HTTPS when possible.
+
+## Zero OpenAI model API usage
+
+The repository intentionally contains no OpenAI model SDK dependency and does not call OpenAI model endpoints.
+
+CI checks Python/project code to help preserve this invariant. The Secure MCP Tunnel runtime credential is separate from model API inference.
