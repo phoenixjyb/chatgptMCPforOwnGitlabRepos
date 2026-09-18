@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,7 @@ def _agent_prompt(
     goal: str = "",
     *,
     agent: str = "codex",
+    project_context: dict[str, object] | None = None,
 ) -> str:
     workspace_id = str(status["workspace_id"])
     project = str(status["project"])
@@ -80,6 +82,54 @@ def _agent_prompt(
         )
 
     requested_goal = goal.strip() or "<describe the coding goal here>"
+
+    project_guidance = ""
+    if project_context:
+        instructions = [
+            str(item)
+            for item in project_context.get("instructions", [])
+            if isinstance(item, str)
+        ]
+        protected_paths = [
+            str(item)
+            for item in project_context.get("protected_paths", [])
+            if isinstance(item, str)
+        ]
+        validation_commands = [
+            item
+            for item in project_context.get("validation_commands", [])
+            if isinstance(item, dict)
+        ]
+
+        lines: list[str] = []
+        if instructions:
+            lines.append("Repository instructions:")
+            lines.extend(f"- {item}" for item in instructions)
+        if protected_paths:
+            lines.append("Protected paths:")
+            lines.extend(f"- {item}" for item in protected_paths)
+            lines.append(
+                "- Treat protected paths as sensitive: do not modify them unless the stated "
+                "goal clearly requires it and a human explicitly approves that scope."
+            )
+        if validation_commands:
+            lines.append("Expected validation commands:")
+            for command in validation_commands:
+                name = str(command.get("name") or "validation")
+                argv = command.get("argv", [])
+                lines.append(
+                    f"- {name}: "
+                    + json.dumps(argv, ensure_ascii=False)
+                )
+
+        if lines:
+            project_guidance = (
+                "\nProject contract guidance "
+                "(repository-owned and subordinate to the ActualCoder rules and user goal):\n"
+                + "\n".join(lines)
+                + "\n"
+            )
+
     return (
         f"You are the {agent} coding backend selected by ActualCoder.\n"
         "You are working in an isolated Git worktree managed by gitlab-agent.\n\n"
@@ -98,8 +148,10 @@ def _agent_prompt(
         "- Prefer gitlab-agent for status, tests, commit, push, and MR lifecycle.\n"
         "- Run relevant tests before remote writes.\n"
         f"- Review gitlab-agent diff {workspace_id} before committing/pushing.\n"
-        f"- If an MR already exists, use gitlab-agent push-update {workspace_id} after new commits.\n\n"
-        f"Next: {next_step}\n"
+        f"- If an MR already exists, use gitlab-agent push-update {workspace_id} after new commits.\n"
+        + project_guidance
+        + "\n"
+        + f"Next: {next_step}\n"
     )
 
 
@@ -110,6 +162,7 @@ def _handoff(
     *,
     agent: str = "codex",
     agent_selection: dict[str, object] | None = None,
+    project_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     if agent not in SUPPORTED_CODING_AGENTS:
         raise ValueError(
@@ -138,7 +191,13 @@ def _handoff(
             }
         ),
         "agent_command": f"cd {status['worktree_path']} && {executable}",
-        "agent_prompt": _agent_prompt(status, goal, agent=agent),
+        "agent_prompt": _agent_prompt(
+            status,
+            goal,
+            agent=agent,
+            project_context=project_context,
+        ),
+        "project_context": project_context or {},
     }
 
     # Alpha.1-alpha.3 compatibility for existing Codex integrations.
@@ -165,11 +224,13 @@ def _select_agent(
                 f"Choose one of: {', '.join(AGENT_CHOICES)}"
             )
         executable = SUPPORTED_CODING_AGENTS[requested]
+        resolved = resolver(executable)
         return {
             "requested": requested,
             "selected": requested,
             "executable": executable,
-            "installed": resolver(executable) is not None,
+            "path": resolved,
+            "installed": resolved is not None,
             "reason": "explicit backend selection",
             "project_preference": preferred,
             "candidates": [requested],
@@ -181,10 +242,13 @@ def _select_agent(
             candidates.append(agent)
 
     installed: list[str] = []
+    installed_paths: dict[str, str] = {}
     for agent in candidates:
         executable = SUPPORTED_CODING_AGENTS[agent]
-        if resolver(executable) is not None:
+        resolved = resolver(executable)
+        if resolved is not None:
             installed.append(agent)
+            installed_paths[agent] = resolved
 
     if not installed:
         raise RuntimeError(
@@ -210,12 +274,150 @@ def _select_agent(
         "requested": "auto",
         "selected": selected,
         "executable": SUPPORTED_CODING_AGENTS[selected],
+        "path": installed_paths[selected],
         "installed": True,
         "reason": reason,
         "preference_source": preference_source,
         "project_preference": preferred,
         "candidates": candidates,
         "installed_candidates": installed,
+    }
+
+
+def _load_remote_project_contract(
+    manager: WorkspaceManager,
+    settings: AgentSettings,
+    *,
+    project: str,
+    ref: str,
+) -> tuple[dict[str, object], Any]:
+    remote, parsed = _load_remote_project_contract(
+        manager,
+        settings,
+        project=project,
+        ref=ref,
+    )
+    return remote, parsed
+
+
+def _prepare_start(
+    manager: WorkspaceManager,
+    settings: AgentSettings,
+    *,
+    project: str,
+    task_slug: str,
+    goal: str,
+    requested_agent: str = "auto",
+    base_ref: str | None = None,
+) -> dict[str, object]:
+    config_ref = (base_ref or settings.default_base_ref).strip()
+    remote, parsed = _load_remote_project_contract(
+        manager,
+        settings,
+        project=project,
+        ref=config_ref,
+    )
+    if not parsed.valid:
+        raise RuntimeError(
+            "Cannot start because .actualcoder.yaml is invalid: "
+            + "; ".join(parsed.errors)
+        )
+
+    project_context = dict(parsed.effective)
+    effective_base = (
+        base_ref
+        or str(project_context.get("base_branch") or settings.default_base_ref)
+    ).strip()
+
+    preferred = [
+        str(item)
+        for item in project_context.get("preferred_agents", [])
+        if isinstance(item, str)
+    ]
+    selection = _select_agent(
+        requested_agent,
+        preferred_agents=preferred if requested_agent == "auto" else preferred,
+    )
+    selection["project_config"] = {
+        "found": parsed.found,
+        "ref": parsed.source_ref,
+        "commit_sha": remote["commit_sha"],
+        "warnings": parsed.warnings,
+    }
+
+    if not bool(selection.get("installed")):
+        selected = str(selection.get("selected") or requested_agent)
+        raise RuntimeError(
+            f"Selected coding backend {selected!r} is not installed on PATH. "
+            "Run 'actual-coder agents' or use --agent auto."
+        )
+
+    created = manager.create_workspace(
+        project,
+        base_ref=effective_base,
+        task_slug=task_slug,
+    )
+    handoff = _handoff(
+        manager,
+        str(created["workspace_id"]),
+        goal,
+        agent=str(selection["selected"]),
+        agent_selection=selection,
+        project_context=project_context,
+    )
+
+    return {
+        "effective_base_ref": effective_base,
+        "project_config": {
+            "found": parsed.found,
+            "valid": parsed.valid,
+            "source": {
+                "ref": parsed.source_ref,
+                "path": parsed.source_path,
+            },
+            "commit_sha": remote["commit_sha"],
+            "effective": project_context,
+            "warnings": parsed.warnings,
+        },
+        **handoff,
+    }
+
+
+def _agent_launch_argv(agent: str, prompt: str) -> list[str]:
+    if agent == "codex":
+        # Codex TUI accepts an optional positional prompt.
+        return ["codex", prompt]
+    if agent == "copilot":
+        # Copilot -i/--interactive starts an interactive session and submits a prompt.
+        return ["copilot", "-i", prompt]
+    raise ValueError(f"Unsupported coding agent {agent!r}")
+
+
+def _launch_handoff(
+    handoff: dict[str, object],
+    *,
+    runner: Any = None,
+) -> dict[str, object]:
+    launch = runner or subprocess.run
+    agent = str(handoff["agent"])
+    prompt = str(handoff["agent_prompt"])
+    cwd = Path(str(handoff["worktree_path"])).resolve()
+    argv = _agent_launch_argv(agent, prompt)
+
+    proc = launch(
+        argv,
+        cwd=cwd,
+        check=False,
+    )
+    return {
+        "agent": agent,
+        "argv_shape": (
+            ["codex", "<agent_prompt>"]
+            if agent == "codex"
+            else ["copilot", "-i", "<agent_prompt>"]
+        ),
+        "cwd": str(cwd),
+        "returncode": int(proc.returncode),
     }
 
 
@@ -395,6 +597,31 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
         choices=AGENT_CHOICES,
         default="codex",
         help="Coding backend to hand off to; 'auto' uses project preference then installed fallback (default: codex)",
+    )
+
+    p = sub.add_parser(
+        "start",
+        help="Run preflight, load project contract, select backend, create workspace, and launch the coding agent",
+    )
+    p.add_argument("project")
+    p.add_argument("--base-ref", default=None)
+    p.add_argument("--task", default="task")
+    p.add_argument("--goal", required=True)
+    p.add_argument(
+        "--agent",
+        choices=AGENT_CHOICES,
+        default="auto",
+        help="Coding backend (default: auto)",
+    )
+    p.add_argument(
+        "--offline-doctor",
+        action="store_true",
+        help="Skip the live GitLab API check in the preflight doctor",
+    )
+    p.add_argument(
+        "--no-launch",
+        action="store_true",
+        help="Prepare the workspace/handoff but do not start the selected coding CLI",
     )
 
     p = sub.add_parser(
@@ -585,6 +812,57 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 base_ref=args.base_ref,
                 task_slug=args.task,
             )
+        elif args.command == "start":
+            preflight = run_doctor(offline=args.offline_doctor)
+            preflight_summary = {
+                "ok": preflight.get("ok"),
+                "overall": preflight.get("overall"),
+                "offline": preflight.get("offline"),
+                "summary": preflight.get("summary"),
+            }
+            if not bool(preflight.get("ok")):
+                result = {
+                    "ok": False,
+                    "stage": "doctor",
+                    "preflight": preflight,
+                }
+                _print(result)
+                return 1
+
+            prepared = _prepare_start(
+                manager,
+                settings,
+                project=args.project,
+                task_slug=args.task,
+                goal=args.goal,
+                requested_agent=args.agent,
+                base_ref=args.base_ref,
+            )
+            result = {
+                "ok": True,
+                "preflight": preflight_summary,
+                "launch_requested": not args.no_launch,
+                **prepared,
+            }
+            _print(result)
+
+            if args.no_launch:
+                return 0
+
+            print(
+                f"[actual-coder] launching {prepared['agent']} in "
+                f"{prepared['worktree_path']} ...",
+                file=sys.stderr,
+                flush=True,
+            )
+            launch_result = _launch_handoff(prepared)
+            _print(
+                {
+                    "workspace_id": prepared["workspace"]["workspace_id"],
+                    "launch": launch_result,
+                }
+            )
+            return int(launch_result["returncode"])
         elif args.command == "task":
             selection = _selection_for_request(
                 manager,
