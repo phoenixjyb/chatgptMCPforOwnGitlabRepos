@@ -763,6 +763,62 @@ class WorkspaceManager:
 
         return "\n".join(chunks)
 
+    def changed_paths(self, workspace_id: str) -> list[str]:
+        """Return tracked + untracked paths changed relative to the workspace base."""
+
+        state = self.get_state(workspace_id)
+        worktree = self._worktree(state)
+
+        tracked = self._run_git(
+            [
+                "diff",
+                "--name-only",
+                "--no-ext-diff",
+                state.base_sha,
+                "--",
+                ".",
+            ],
+            cwd=worktree,
+        ).stdout.splitlines()
+        untracked = self._run_git(
+            ["ls-files", "--others", "--exclude-standard"],
+            cwd=worktree,
+        ).stdout.splitlines()
+
+        return sorted(
+            {
+                path.strip().replace("\\", "/")
+                for path in [*tracked, *untracked]
+                if path.strip()
+            }
+        )
+
+    def security_diff(self, workspace_id: str) -> str:
+        """Return the complete base-to-working-tree patch used for secret scanning."""
+
+        state = self.get_state(workspace_id)
+        worktree = self._worktree(state)
+        tracked = self._run_git(
+            [
+                "diff",
+                "--no-ext-diff",
+                "--unified=0",
+                state.base_sha,
+                "--",
+                ".",
+            ],
+            cwd=worktree,
+        ).stdout
+        return tracked + "\n" + self._untracked_diff(worktree)
+
+    def latest_commit_subject(self, workspace_id: str) -> str:
+        state = self.get_state(workspace_id)
+        worktree = self._worktree(state)
+        return self._run_git(
+            ["log", "-1", "--pretty=%s"],
+            cwd=worktree,
+        ).stdout.strip()
+
     def diff(self, workspace_id: str) -> dict[str, object]:
         state = self.get_state(workspace_id)
         worktree = self._worktree(state)
