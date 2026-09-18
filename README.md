@@ -6,7 +6,7 @@
 This project now has **two complementary pieces**:
 
 1. **Read-only ChatGPT MCP** — inspect private/self-hosted GitLab repositories from normal ChatGPT conversations.
-2. **v0.2 local coding engine** — let Codex or a human create isolated worktrees, edit code, run builds/tests, commit, push, and create a Merge Request.
+2. **CodingAgent** — an agent-neutral local coding layer that can hand an isolated GitLab worktree to Codex CLI, GitHub Copilot CLI, or future coding agents while `gitlab-agent` owns repository/MR lifecycle operations.
 
 The v0.2 design deliberately avoids OpenAI model API calls from this project.
 
@@ -26,18 +26,19 @@ server.py (read-only)
 Self-hosted GitLab
 
 
-Codex CLI / terminal
-    │
-    ▼
-gitlab-agent
-    │
-    ├── isolated worktree
-    ├── edit / apply patch
-    ├── build / test
-    ├── diff
-    ├── commit
-    ├── push feature branch
-    └── create GitLab MR
+Codex CLI ───────┐
+Copilot CLI ─────┼──► CodingAgent
+future agents ───┘        │
+                          ▼
+                    gitlab-agent
+                          │
+                          ├── isolated worktree
+                          ├── build / test
+                          ├── diff
+                          ├── commit
+                          ├── push / push-update
+                          ├── create GitLab MR
+                          └── recover existing MR/branch
 ```
 
 The GitLab server does **not** need to be directly reachable from the public Internet for the ChatGPT read MCP. The machine running the MCP/tunnel only needs to reach GitLab plus OpenAI over outbound HTTPS.
@@ -55,9 +56,30 @@ The GitLab server does **not** need to be directly reachable from the public Int
 - `get_pipeline_jobs`
 - `get_job_log`
 
-## v0.2 local coding engine
+## v0.2 CodingAgent
 
-Current alpha CLI commands:
+`codingagent` is the user-facing agent-neutral command. `gitlab-agent` remains the lower-level GitLab/worktree controller.
+
+Supported coding backends:
+
+```text
+codex
+copilot
+```
+
+Example handoff:
+
+```bash
+codingagent task team/project-a \
+  --agent copilot \
+  --base-ref main \
+  --task fix-timeout \
+  --goal "Fix the timeout bug and add regression coverage"
+```
+
+The result includes `agent`, `agent_command`, `agent_prompt`, and the managed workspace metadata.
+
+Current low-level CLI commands:
 
 ```text
 gitlab-agent config
@@ -146,15 +168,16 @@ Test the read MCP:
 uv run mcp dev server.py
 ```
 
-Test the v0.2 CLI:
+Test the v0.2 CLIs:
 
 ```bash
+uv run codingagent --help
 uv run gitlab-agent --help
 ```
 
-### Install `gitlab-agent` for use from any worktree
+### Install CodingAgent for use from any worktree
 
-For Codex, install the CLI as an editable user tool:
+Install the package as an editable user tool:
 
 ```bash
 bash scripts/install_user.sh
@@ -171,8 +194,9 @@ chmod 600 ~/.config/gitlab-agent/.env
 After that, from any directory:
 
 ```bash
+codingagent --help
+codingagent config
 gitlab-agent --help
-gitlab-agent config
 ```
 
 The global CLI first uses `GITLAB_AGENT_ENV_FILE` when explicitly set, otherwise
@@ -231,7 +255,8 @@ If you use Codex and want to avoid API billing, sign Codex in with your ChatGPT 
 
 - **English setup guide:** [docs/SETUP_TUTORIAL.md](docs/SETUP_TUTORIAL.md)
 - **中文配置教程:** [docs/SETUP_TUTORIAL_CN.md](docs/SETUP_TUTORIAL_CN.md)
-- **v0.2 Codex/local coding quickstart:** [docs/V0.2_CODEX_QUICKSTART.md](docs/V0.2_CODEX_QUICKSTART.md)
+- **CodingAgent quickstart:** [docs/CODINGAGENT_QUICKSTART.md](docs/CODINGAGENT_QUICKSTART.md)
+- **Legacy v0.2 Codex/local coding quickstart:** [docs/V0.2_CODEX_QUICKSTART.md](docs/V0.2_CODEX_QUICKSTART.md)
 - **v0.2 architecture:** [docs/V0.2_WRITE_ACCESS_DESIGN.md](docs/V0.2_WRITE_ACCESS_DESIGN.md)
 - **Troubleshooting:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 - **Security:** [SECURITY.md](SECURITY.md)
@@ -248,7 +273,8 @@ Apache License 2.0. See [LICENSE](LICENSE).
 ## Status
 
 - `v0.1.0`: tagged read-only release.
-- `v0.2.0-dev`: active development branch for the local Codex coding engine.
-- Package version on the v0.2 branch: `0.2.0a3`.
-- Alpha.2 adds global installation, Codex task/resume handoffs, and iterative pushes to an existing MR branch.
+- `v0.2.0-dev`: active development branch for CodingAgent.
+- Package version on the v0.2 branch: `0.2.0a4`.
+- Alpha.2 adds global installation, task/resume handoffs, and iterative pushes to an existing MR branch.
 - Alpha.3 adds reconstruction of local workspaces from existing remote branches or GitLab MRs after cleanup/restart.
+- Alpha.4 introduces the `codingagent` command and first-class `codex` / `copilot` backend selection.
