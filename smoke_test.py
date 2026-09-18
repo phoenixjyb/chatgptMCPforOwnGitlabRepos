@@ -28,6 +28,18 @@ def load_env_file(path: Path) -> None:
             os.environ.setdefault(key, value)
 
 
+def resolve_env_file() -> Path:
+    explicit = os.getenv("GITLAB_AGENT_ENV_FILE")
+    if explicit:
+        return Path(explicit).expanduser()
+
+    user_config = Path("~/.config/gitlab-agent/.env").expanduser()
+    if user_config.is_file():
+        return user_config
+
+    return Path(__file__).resolve().with_name(".env")
+
+
 def env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -36,7 +48,7 @@ def env_bool(name: str, default: bool) -> bool:
 
 
 def main() -> int:
-    load_env_file(Path(__file__).resolve().with_name(".env"))
+    load_env_file(resolve_env_file())
 
     base = os.getenv("GITLAB_BASE_URL", "").strip().rstrip("/")
     token = os.getenv("GITLAB_TOKEN", "").strip()
