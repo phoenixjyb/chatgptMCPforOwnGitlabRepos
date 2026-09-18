@@ -34,8 +34,12 @@ Verify from any directory:
 ```bash
 codingagent --help
 codingagent config
+codingagent agents
 gitlab-agent --help
 ```
+
+`codingagent agents` only checks whether supported CLI executables are installed.
+It does not launch Codex/Copilot, check authentication, or consume model quota.
 
 ## 2. Start a task with Codex
 
@@ -174,7 +178,36 @@ CodingAgent keeps the previously validated v0.2 boundaries:
 - Git credentials are passed through temporary askpass rather than embedded in remotes;
 - the host runner is constrained execution, not a VM/container sandbox.
 
-## 8. Current backends
+## 8. Check installed coding backends
+
+```bash
+codingagent agents
+```
+
+Example:
+
+```json
+{
+  "agents": [
+    {
+      "agent": "codex",
+      "executable": "codex",
+      "installed": true,
+      "path": "/path/to/codex",
+      "authentication_checked": false
+    },
+    {
+      "agent": "copilot",
+      "executable": "copilot",
+      "installed": true,
+      "path": "/path/to/copilot",
+      "authentication_checked": false
+    }
+  ]
+}
+```
+
+## 9. Current backends
 
 Alpha.4 supports:
 
