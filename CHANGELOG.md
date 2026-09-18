@@ -8,6 +8,8 @@
 - Replace Codex-specific handoff fields with `agent`, `agent_command`, and `agent_prompt`; keep Codex aliases for compatibility.
 - Add a CodingAgent quickstart and backend-handoff regression tests.
 - Verify both packaged CLIs in CI.
+- Make handoff next-step text goal-neutral so inspection-only tasks are not told to modify code.
+- Add `codingagent agents` to report installed supported backend CLIs without invoking them or consuming quota.
 - Real coding validation already includes a GitHub Copilot CLI C++ change pushed to an existing GitLab MR.
 
 ## 0.2.0-alpha.3
