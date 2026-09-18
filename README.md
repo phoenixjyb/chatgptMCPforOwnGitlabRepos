@@ -119,8 +119,17 @@ Verify:
 actual-coder --help
 actual-coder config
 actual-coder agents
+actual-coder doctor
 gitlab-agent --help
 ```
+
+For diagnostics without touching the GitLab API:
+
+```bash
+actual-coder doctor --offline
+```
+
+`doctor` is non-destructive: it does not modify GitLab and does not invoke Codex/Copilot models. It checks the local runtime, config safety, project allowlist, GitLab API authentication (unless `--offline`), proxy policy, workspace state, disk space, coding-backend availability, and optional tunnel-client setup.
 
 Start a coding task:
 
@@ -294,7 +303,9 @@ gitlab-agent
 
 - `v0.1.0`: read-only ChatGPT MCP release.
 - `main`: recommended team-consumption branch.
-- Current package version: `0.2.1`.
+- `v0.3.0-dev`: active development branch for lifecycle/productivity features.
+- Current development package version: `0.3.0a1`.
+- v0.3 alpha.1 adds `actual-coder doctor` as the first lifecycle-readiness feature.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
