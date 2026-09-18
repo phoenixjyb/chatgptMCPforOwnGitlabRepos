@@ -291,11 +291,16 @@ def _load_remote_project_contract(
     project: str,
     ref: str,
 ) -> tuple[dict[str, object], Any]:
-    remote, parsed = _load_remote_project_contract(
-        manager,
-        settings,
-        project=project,
+    remote = manager.read_remote_text_file(
+        project,
+        PROJECT_CONFIG_FILENAME,
         ref=ref,
+    )
+    parsed = parse_project_config(
+        remote["content"] if remote["exists"] else None,
+        settings=settings,
+        source_ref=str(remote["ref"]),
+        source_path=PROJECT_CONFIG_FILENAME,
     )
     return remote, parsed
 
