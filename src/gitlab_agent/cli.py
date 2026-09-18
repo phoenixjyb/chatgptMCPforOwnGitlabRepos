@@ -19,6 +19,8 @@ SUPPORTED_CODING_AGENTS = {
     "codex": "codex",
     "copilot": "copilot",
 }
+DEFAULT_AGENT_ORDER = ["codex", "copilot"]
+AGENT_CHOICES = ["auto", *DEFAULT_AGENT_ORDER]
 
 
 def _print(data: Any) -> None:
@@ -107,6 +109,7 @@ def _handoff(
     goal: str = "",
     *,
     agent: str = "codex",
+    agent_selection: dict[str, object] | None = None,
 ) -> dict[str, object]:
     if agent not in SUPPORTED_CODING_AGENTS:
         raise ValueError(
@@ -120,6 +123,20 @@ def _handoff(
         "workspace": status,
         "worktree_path": status["worktree_path"],
         "agent": agent,
+        "agent_requested": (
+            str(agent_selection.get("requested"))
+            if agent_selection is not None
+            else agent
+        ),
+        "agent_selection": (
+            agent_selection
+            if agent_selection is not None
+            else {
+                "requested": agent,
+                "selected": agent,
+                "reason": "explicit backend selection",
+            }
+        ),
         "agent_command": f"cd {status['worktree_path']} && {executable}",
         "agent_prompt": _agent_prompt(status, goal, agent=agent),
     }
@@ -130,6 +147,136 @@ def _handoff(
         result["codex_prompt"] = result["agent_prompt"]
 
     return result
+
+
+def _select_agent(
+    requested: str,
+    *,
+    preferred_agents: list[str] | None = None,
+    which: Any = None,
+) -> dict[str, object]:
+    resolver = which or shutil.which
+    preferred = list(preferred_agents or [])
+
+    if requested != "auto":
+        if requested not in SUPPORTED_CODING_AGENTS:
+            raise ValueError(
+                f"Unsupported coding agent {requested!r}. "
+                f"Choose one of: {', '.join(AGENT_CHOICES)}"
+            )
+        executable = SUPPORTED_CODING_AGENTS[requested]
+        return {
+            "requested": requested,
+            "selected": requested,
+            "executable": executable,
+            "installed": resolver(executable) is not None,
+            "reason": "explicit backend selection",
+            "project_preference": preferred,
+            "candidates": [requested],
+        }
+
+    candidates: list[str] = []
+    for agent in [*preferred, *DEFAULT_AGENT_ORDER]:
+        if agent in SUPPORTED_CODING_AGENTS and agent not in candidates:
+            candidates.append(agent)
+
+    installed: list[str] = []
+    for agent in candidates:
+        executable = SUPPORTED_CODING_AGENTS[agent]
+        if resolver(executable) is not None:
+            installed.append(agent)
+
+    if not installed:
+        raise RuntimeError(
+            "No supported coding backend is installed for --agent auto. "
+            "Run 'actual-coder agents' and install Codex CLI or GitHub Copilot CLI."
+        )
+
+    selected = installed[0]
+    if preferred and selected in preferred:
+        reason = "selected the first installed backend from project preference"
+        preference_source = "project"
+    elif preferred:
+        reason = (
+            "none of the preferred project backends are installed; "
+            "selected the first installed default fallback"
+        )
+        preference_source = "fallback"
+    else:
+        reason = "no project backend preference; selected the first installed default backend"
+        preference_source = "default"
+
+    return {
+        "requested": "auto",
+        "selected": selected,
+        "executable": SUPPORTED_CODING_AGENTS[selected],
+        "installed": True,
+        "reason": reason,
+        "preference_source": preference_source,
+        "project_preference": preferred,
+        "candidates": candidates,
+        "installed_candidates": installed,
+    }
+
+
+def _auto_agent_selection(
+    manager: WorkspaceManager,
+    settings: AgentSettings,
+    *,
+    project: str,
+    ref: str,
+) -> dict[str, object]:
+    remote = manager.read_remote_text_file(
+        project,
+        PROJECT_CONFIG_FILENAME,
+        ref=ref,
+    )
+    parsed = parse_project_config(
+        remote["content"] if remote["exists"] else None,
+        settings=settings,
+        source_ref=str(remote["ref"]),
+        source_path=PROJECT_CONFIG_FILENAME,
+    )
+    if not parsed.valid:
+        raise RuntimeError(
+            "Cannot use --agent auto because .actualcoder.yaml is invalid: "
+            + "; ".join(parsed.errors)
+        )
+
+    preferred = [
+        str(item)
+        for item in parsed.effective.get("preferred_agents", [])
+        if isinstance(item, str)
+    ]
+    selection = _select_agent(
+        "auto",
+        preferred_agents=preferred,
+    )
+    selection["project_config"] = {
+        "found": parsed.found,
+        "ref": parsed.source_ref,
+        "commit_sha": remote["commit_sha"],
+        "warnings": parsed.warnings,
+    }
+    return selection
+
+
+def _selection_for_request(
+    manager: WorkspaceManager,
+    settings: AgentSettings,
+    *,
+    requested: str,
+    project: str,
+    ref: str,
+) -> dict[str, object]:
+    if requested == "auto":
+        return _auto_agent_selection(
+            manager,
+            settings,
+            project=project,
+            ref=ref,
+        )
+    return _select_agent(requested)
 
 
 def _available_agents() -> dict[str, object]:
@@ -245,9 +392,9 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
     p.add_argument("--goal", default="")
     p.add_argument(
         "--agent",
-        choices=sorted(SUPPORTED_CODING_AGENTS),
+        choices=AGENT_CHOICES,
         default="codex",
-        help="Coding backend to hand off to (default: codex)",
+        help="Coding backend to hand off to; 'auto' uses project preference then installed fallback (default: codex)",
     )
 
     p = sub.add_parser(
@@ -260,7 +407,7 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
     p.add_argument("--goal", default="")
     p.add_argument(
         "--agent",
-        choices=sorted(SUPPORTED_CODING_AGENTS),
+        choices=AGENT_CHOICES,
         default="codex",
     )
 
@@ -273,7 +420,7 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
     p.add_argument("--goal", default="")
     p.add_argument(
         "--agent",
-        choices=sorted(SUPPORTED_CODING_AGENTS),
+        choices=AGENT_CHOICES,
         default="codex",
     )
 
@@ -290,7 +437,7 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
     p.add_argument("--goal", default="")
     p.add_argument(
         "--agent",
-        choices=sorted(SUPPORTED_CODING_AGENTS),
+        choices=AGENT_CHOICES,
         default="codex",
     )
 
@@ -439,6 +586,13 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 task_slug=args.task,
             )
         elif args.command == "task":
+            selection = _selection_for_request(
+                manager,
+                settings,
+                requested=args.agent,
+                project=args.project,
+                ref=args.base_ref or settings.default_base_ref,
+            )
             created = manager.create_workspace(
                 args.project,
                 base_ref=args.base_ref,
@@ -448,9 +602,17 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 manager,
                 str(created["workspace_id"]),
                 args.goal,
-                agent=args.agent,
+                agent=str(selection["selected"]),
+                agent_selection=selection,
             )
         elif args.command == "checkout-branch":
+            selection = _selection_for_request(
+                manager,
+                settings,
+                requested=args.agent,
+                project=args.project,
+                ref=args.base_ref or settings.default_base_ref,
+            )
             restored = manager.checkout_remote_branch(
                 args.project,
                 args.branch,
@@ -460,7 +622,8 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 manager,
                 str(restored["workspace_id"]),
                 args.goal,
-                agent=args.agent,
+                agent=str(selection["selected"]),
+                agent_selection=selection,
             )
         elif args.command == "checkout-mr":
             mr = gitlab_api.merge_request(args.project, args.iid)
@@ -479,6 +642,13 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
             web_url = str(mr.get("web_url") or "").strip() or None
             if not source_branch or not target_branch:
                 raise RuntimeError("GitLab MR response is missing source/target branch")
+            selection = _selection_for_request(
+                manager,
+                settings,
+                requested=args.agent,
+                project=args.project,
+                ref=target_branch,
+            )
             restored = manager.checkout_remote_branch(
                 args.project,
                 source_branch,
@@ -489,7 +659,8 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 manager,
                 str(restored["workspace_id"]),
                 args.goal or f"Resume MR !{args.iid}: {mr.get('title', '')}",
-                agent=args.agent,
+                agent=str(selection["selected"]),
+                agent_selection=selection,
             )
             result = {
                 "merge_request": {
@@ -507,11 +678,20 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
         elif args.command == "status":
             result = manager.status(args.workspace_id)
         elif args.command == "resume":
+            resume_status = manager.status(args.workspace_id)
+            selection = _selection_for_request(
+                manager,
+                settings,
+                requested=args.agent,
+                project=str(resume_status["project"]),
+                ref=str(resume_status["base_ref"]),
+            )
             result = _handoff(
                 manager,
                 args.workspace_id,
                 args.goal,
-                agent=args.agent,
+                agent=str(selection["selected"]),
+                agent_selection=selection,
             )
         elif args.command == "path":
             path = str(manager.status(args.workspace_id)["worktree_path"])
