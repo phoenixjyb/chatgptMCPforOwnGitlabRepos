@@ -54,6 +54,7 @@ class WorkspaceManagerTests(unittest.TestCase):
             api_token="",
             git_token="",
             git_username="oauth2",
+            git_trust_env=False,
             allowed_projects={"team/project"},
             require_write_allowlist=True,
             workspace_root=root / "agent",
