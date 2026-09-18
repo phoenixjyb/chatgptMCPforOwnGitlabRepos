@@ -42,6 +42,9 @@ class CommandRunner:
         home = self.settings.workspace_root / "runner-home" / workspace_id
         home.mkdir(parents=True, exist_ok=True)
         env["HOME"] = str(home)
+        if os.name == "nt":
+            # Many Windows-native tools prefer USERPROFILE over HOME.
+            env["USERPROFILE"] = str(home)
         env["GIT_TERMINAL_PROMPT"] = "0"
         env["PYTHONUNBUFFERED"] = "1"
         return env
