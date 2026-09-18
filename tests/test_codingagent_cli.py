@@ -110,6 +110,12 @@ class ActualCoderCLITests(unittest.TestCase):
         self.assertFalse(agents["codex"]["installed"])
         self.assertFalse(agents["copilot"]["authentication_checked"])
 
+    def test_doctor_parser_accepts_offline(self) -> None:
+        parser = _build_parser(prog="actual-coder")
+        args = parser.parse_args(["doctor", "--offline"])
+        self.assertEqual(args.command, "doctor")
+        self.assertTrue(args.offline)
+
     def test_agent_prompt_rejects_unknown_backend(self) -> None:
         status = FakeManager().status("abc123")
         with self.assertRaises(ValueError):
