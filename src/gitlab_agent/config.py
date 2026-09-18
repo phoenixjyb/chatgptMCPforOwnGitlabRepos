@@ -77,6 +77,8 @@ class AgentSettings:
     config_file: Path
     gitlab_base_url: str
     api_token: str
+    api_verify_ssl: bool
+    api_trust_env: bool
     git_token: str
     git_username: str
     git_trust_env: bool
@@ -121,6 +123,8 @@ class AgentSettings:
             config_file=env_file.resolve() if env_file.exists() else env_file.expanduser(),
             gitlab_base_url=base_url,
             api_token=api_token,
+            api_verify_ssl=env_bool("GITLAB_VERIFY_SSL", True),
+            api_trust_env=env_bool("GITLAB_TRUST_ENV", False),
             git_token=git_token,
             git_username=os.getenv("GITLAB_GIT_USERNAME", "oauth2").strip() or "oauth2",
             git_trust_env=env_bool("GITLAB_GIT_TRUST_ENV", False),
