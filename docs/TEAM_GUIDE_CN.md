@@ -90,14 +90,16 @@ git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
 cd chatgptMCPforOwnGitlabRepos
 ```
 
-当前团队测试使用开发分支：
+团队日常使用直接使用 `main`：
 
 ```bash
-git checkout v0.2.0-dev
+git checkout main
 git pull
 ```
 
-> 后续正式 release 合并到 main 后，可改为使用固定 tag / main。团队生产使用时建议统一版本，不要每个人长期停留在不同 commit。
+新成员首次 clone 后默认就是 `main`，通常不需要额外切分支。
+
+> 团队建议统一使用 `main` 或固定 release tag，不要每个人长期停留在不同 commit。
 
 ---
 
@@ -1004,7 +1006,7 @@ actual-coder resume "$WS" \
 在工具仓库：
 
 ```bash
-git checkout v0.2.0-dev
+git checkout main
 git pull
 uv sync
 bash scripts/install_user.sh
