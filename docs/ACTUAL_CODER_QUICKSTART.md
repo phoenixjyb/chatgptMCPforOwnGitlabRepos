@@ -14,9 +14,10 @@ The project itself makes no OpenAI model API calls.
 
 ## 1. Install
 
-From the `v0.2.0-dev` branch:
+From the repository `main` branch:
 
 ```bash
+git checkout main
 git pull
 uv sync
 bash scripts/install_user.sh
@@ -210,7 +211,7 @@ Example:
 
 ## 9. Current backends
 
-Alpha.5 supports:
+v0.2.0 supports:
 
 ```text
 codex
