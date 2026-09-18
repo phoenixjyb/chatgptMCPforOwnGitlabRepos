@@ -52,6 +52,10 @@ For team installation, configuration, daily workflow, MR recovery, security rule
 
 **[团队安装、配置与使用完整指南（中文）](docs/TEAM_GUIDE_CN.md)**
 
+For team members using ChatGPT Pro + Secure MCP Tunnel, including Tunnel ID / Runtime API Key setup and OS-specific credential storage:
+
+**[团队 OpenAI Secure MCP Tunnel 配置指南（中文）](docs/OPENAI_TUNNEL_TEAM_SETUP_CN.md)**
+
 Other references:
 
 - [ActualCoder Quickstart](docs/ACTUAL_CODER_QUICKSTART.md)
@@ -66,26 +70,38 @@ Other references:
 
 Requirements:
 
-- macOS or Linux;
+- macOS, Linux, or Windows 10/11;
 - Git;
 - Python 3.10+;
 - [uv](https://docs.astral.sh/uv/);
 - network access to the target GitLab;
 - at least one coding backend: Codex CLI or GitHub Copilot CLI.
 
-Clone and prepare:
+Clone and prepare on macOS/Linux:
 
 ```bash
 git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
 cd chatgptMCPforOwnGitlabRepos
 
-# main is the team-consumption branch
 cp .env.example .env
 chmod 600 .env
 # edit .env
 
 uv sync
 bash scripts/install_user.sh
+```
+
+On native Windows PowerShell:
+
+```powershell
+git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
+Set-Location chatgptMCPforOwnGitlabRepos
+
+Copy-Item .env.example .env
+# edit .env
+
+uv sync
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install_user.ps1
 ```
 
 Install the stable per-user config:
