@@ -174,6 +174,18 @@ actual-coder task team/project-a \
   --goal "Fix the timeout bug and add regression coverage"
 ```
 
+Or let ActualCoder select an installed backend:
+
+```bash
+actual-coder task team/project-a \
+  --agent auto \
+  --base-ref main \
+  --task fix-timeout \
+  --goal "Fix the timeout bug and add regression coverage"
+```
+
+`auto` reads `.actualcoder.yaml` from the task/base ref when present and uses `agents.preferred`; otherwise it falls back to `codex → copilot`. It never launches a model during selection and reports the selected backend plus selection reason in the JSON handoff.
+
 Or use Codex:
 
 ```bash
@@ -337,9 +349,10 @@ gitlab-agent
 - `v0.1.0`: read-only ChatGPT MCP release.
 - `main`: recommended team-consumption branch.
 - `v0.3.0-dev`: active development branch for lifecycle/productivity features.
-- Current development package version: `0.3.0a2`.
+- Current development package version: `0.3.0a3`.
 - v0.3 alpha.1 adds `actual-coder doctor`.
 - v0.3 alpha.2 adds the repository-local `.actualcoder.yaml` project contract and `project-config --validate`.
+- v0.3 alpha.3 adds project-aware `--agent auto` selection with explicit selection metadata.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
