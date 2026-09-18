@@ -8,6 +8,10 @@
 - Update generated agent prompts to say they were selected by ActualCoder.
 - Update README, architecture docs, installer output, quickstart, tests, and CI for the new name.
 - Keep `gitlab-agent` unchanged as the low-level GitLab/worktree control plane.
+- Rewrite the README around the tested ActualCoder/team workflow.
+- Add `docs/TEAM_GUIDE_CN.md` as the canonical Chinese team installation/configuration/usage guide.
+- Add dependency-free tracked-file/full-history secret scanning and enforce it in CI.
+- Harden `.gitignore`, `.env.example`, security guidance, and troubleshooting documentation for team distribution.
 
 ## 0.2.0-alpha.4
 
