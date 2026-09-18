@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,8 +48,7 @@ jobs:
           ! grep -R --include='*.py' -E '(^|[[:space:]])(from[[:space:]]+openai|import[[:space:]]+openai)|api\.openai\.com/v1' .
           ! grep -Ei '^[[:space:]]*"openai([<=>~!]|")' pyproject.toml
 
-      - name: Check that secrets are not committed
-        shell: bash
+      - name: Scan tracked files and Git history for secrets
         run: |
           test ! -f .env
-          ! grep -R --exclude-dir=.git --exclude='.env.example' -E 'glpat-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9_-]{20,}' .
+          uv run python scripts/check_repo_secrets.py --history
