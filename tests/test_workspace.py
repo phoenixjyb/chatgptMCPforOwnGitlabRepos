@@ -137,6 +137,51 @@ class WorkspaceManagerTests(unittest.TestCase):
         self.assertEqual(remote_sha, second_commit["head"])
         self.manager.cleanup(workspace_id)
 
+    def test_reconstruct_remote_branch_after_cleanup_and_push_update(self) -> None:
+        created = self.manager.create_workspace("team/project", task_slug="resume")
+        workspace_id = str(created["workspace_id"])
+        self.manager.write_file(workspace_id, "first.txt", "one\n")
+        self.manager.commit(workspace_id, "First change")
+        first_push = self.manager.push(workspace_id)
+        branch = str(first_push["workspace"]["branch"])
+        first_head = str(first_push["workspace"]["head"])
+
+        self.manager.cleanup(workspace_id)
+
+        restored = self.manager.checkout_remote_branch(
+            "team/project",
+            branch,
+            base_ref="main",
+            merge_request_url="https://gitlab.example.test/team/project/-/merge_requests/1",
+        )
+        restored_id = str(restored["workspace_id"])
+        self.assertTrue(restored["pushed"])
+        self.assertEqual(restored["branch"], branch)
+        self.assertEqual(restored["head"], first_head)
+        self.assertEqual(
+            restored["merge_request_url"],
+            "https://gitlab.example.test/team/project/-/merge_requests/1",
+        )
+
+        self.manager.write_file(restored_id, "second.txt", "two\n")
+        second_commit = self.manager.commit(restored_id, "Second change")
+        second_push = self.manager.push(restored_id)
+
+        self.assertTrue(second_push["updated_existing_branch"])
+        self.assertEqual(
+            second_push["merge_request_url"],
+            "https://gitlab.example.test/team/project/-/merge_requests/1",
+        )
+        remote_sha = run(
+            "git",
+            "--git-dir",
+            str(self.remote),
+            "rev-parse",
+            f"refs/heads/{branch}",
+        )
+        self.assertEqual(remote_sha, second_commit["head"])
+        self.manager.cleanup(restored_id)
+
     def test_diff_includes_untracked_files(self) -> None:
         created = self.manager.create_workspace("team/project", task_slug="untracked")
         workspace_id = str(created["workspace_id"])
