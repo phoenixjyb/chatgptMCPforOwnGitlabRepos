@@ -60,9 +60,13 @@ The GitLab server does **not** need to be directly reachable from the public Int
 Current alpha CLI commands:
 
 ```text
+gitlab-agent config
 gitlab-agent create
+gitlab-agent task
 gitlab-agent list
 gitlab-agent status
+gitlab-agent resume
+gitlab-agent path
 gitlab-agent files
 gitlab-agent read
 gitlab-agent write
@@ -71,6 +75,7 @@ gitlab-agent diff
 gitlab-agent run
 gitlab-agent commit
 gitlab-agent push
+gitlab-agent push-update
 gitlab-agent push-mr
 gitlab-agent cleanup
 ```
@@ -145,6 +150,32 @@ Test the v0.2 CLI:
 uv run gitlab-agent --help
 ```
 
+### Install `gitlab-agent` for use from any worktree
+
+For Codex, install the CLI as an editable user tool:
+
+```bash
+bash scripts/install_user.sh
+```
+
+Then copy your working local configuration once:
+
+```bash
+mkdir -p ~/.config/gitlab-agent
+cp .env ~/.config/gitlab-agent/.env
+chmod 600 ~/.config/gitlab-agent/.env
+```
+
+After that, from any directory:
+
+```bash
+gitlab-agent --help
+gitlab-agent config
+```
+
+The global CLI first uses `GITLAB_AGENT_ENV_FILE` when explicitly set, otherwise
+`~/.config/gitlab-agent/.env`, then falls back to a local `.env`.
+
 ## Credentials
 
 For the read MCP:
@@ -216,4 +247,5 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 - `v0.1.0`: tagged read-only release.
 - `v0.2.0-dev`: active development branch for the local Codex coding engine.
-- Package version on the v0.2 branch: `0.2.0a1`.
+- Package version on the v0.2 branch: `0.2.0a2`.
+- Alpha.2 adds global installation, Codex task/resume handoffs, and iterative pushes to an existing MR branch.
