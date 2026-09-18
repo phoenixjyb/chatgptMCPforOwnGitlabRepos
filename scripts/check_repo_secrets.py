@@ -81,10 +81,17 @@ def is_text_candidate(path: Path) -> bool:
     return path.name in TEXT_FILENAMES or path.suffix.lower() in TEXT_SUFFIX_ALLOWLIST
 
 
+SAFE_EXAMPLE_VALUES = {
+    "tunnel_0123456789abcdef0123456789abcdef",
+}
+
+
 def scan_text(label: str, text: str) -> list[str]:
     findings: list[str] = []
     for name, pattern in PATTERNS:
         for match in pattern.finditer(text):
+            if match.group(0) in SAFE_EXAMPLE_VALUES:
+                continue
             line = text.count("\n", 0, match.start()) + 1
             preview = match.group(0)
             if len(preview) > 120:
