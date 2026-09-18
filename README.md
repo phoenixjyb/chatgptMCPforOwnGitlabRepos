@@ -79,7 +79,7 @@ Clone and prepare:
 git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
 cd chatgptMCPforOwnGitlabRepos
 
-git checkout v0.2.0-dev
+# main is the team-consumption branch
 cp .env.example .env
 chmod 600 .env
 # edit .env
@@ -262,7 +262,7 @@ The canonical user-facing command is now:
 actual-coder
 ```
 
-During the alpha series, the older alias remains available:
+For backward compatibility, the older alias remains available:
 
 ```bash
 codingagent
@@ -277,8 +277,8 @@ gitlab-agent
 ## Current status
 
 - `v0.1.0`: read-only ChatGPT MCP release.
-- `v0.2.0-dev`: active ActualCoder development branch.
-- Current package version: `0.2.0a5`.
+- `main`: recommended team-consumption branch.
+- Current package version: `0.2.0`.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
