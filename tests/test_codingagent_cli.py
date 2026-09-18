@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from gitlab_agent.cli import _agent_prompt, _build_parser, _handoff
+from gitlab_agent.cli import _agent_prompt, _available_agents, _build_parser, _handoff
 
 
 class FakeManager:
@@ -68,6 +69,31 @@ class CodingAgentCLITests(unittest.TestCase):
         self.assertEqual(args.command, "task")
         self.assertEqual(args.agent, "copilot")
         self.assertEqual(args.goal, "Fix it")
+
+    def test_inspection_only_goal_does_not_instruct_code_changes(self) -> None:
+        status = FakeManager().status("abc123")
+        prompt = _agent_prompt(
+            status,
+            "Inspect the repository. Do not modify files.",
+            agent="copilot",
+        )
+        self.assertIn("only modify files if the goal requires a code change", prompt)
+        self.assertNotIn("make the requested change", prompt)
+
+    def test_agents_reports_installation_without_invoking_backends(self) -> None:
+        def fake_which(executable: str) -> str | None:
+            if executable == "copilot":
+                return "/usr/local/bin/copilot"
+            return None
+
+        with patch("gitlab_agent.cli.shutil.which", side_effect=fake_which):
+            result = _available_agents()
+
+        agents = {item["agent"]: item for item in result["agents"]}
+        self.assertTrue(agents["copilot"]["installed"])
+        self.assertEqual(agents["copilot"]["path"], "/usr/local/bin/copilot")
+        self.assertFalse(agents["codex"]["installed"])
+        self.assertFalse(agents["copilot"]["authentication_checked"])
 
     def test_agent_prompt_rejects_unknown_backend(self) -> None:
         status = FakeManager().status("abc123")
