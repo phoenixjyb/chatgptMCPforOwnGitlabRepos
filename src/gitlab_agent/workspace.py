@@ -633,6 +633,8 @@ class WorkspaceManager:
 
     def push(self, workspace_id: str) -> dict[str, object]:
         state = self.get_state(workspace_id)
+        was_already_pushed = state.pushed
+        existing_mr_url = state.merge_request_url
         worktree, _ = self._assert_pushable(state)
         remote_url = self._run_git(
             ["remote", "get-url", "origin"],
@@ -640,6 +642,9 @@ class WorkspaceManager:
         ).stdout.strip()
         auth = self._remote_needs_auth(remote_url)
 
+        self._progress(
+            f"{'updating' if was_already_pushed else 'pushing'} remote branch {state.branch} ..."
+        )
         proc = self._run_git(
             ["push", "--set-upstream", "origin", state.branch],
             cwd=worktree,
@@ -651,6 +656,8 @@ class WorkspaceManager:
         self._save_state(state)
         return {
             "workspace": self.status(workspace_id),
+            "updated_existing_branch": was_already_pushed,
+            "merge_request_url": existing_mr_url,
             "stdout": proc.stdout,
             "stderr": proc.stderr,
         }
