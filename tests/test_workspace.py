@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from dataclasses import replace
 from unittest.mock import patch
 
 from gitlab_agent.config import AgentSettings
@@ -77,6 +78,28 @@ class WorkspaceManagerTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp.cleanup()
+
+    def test_git_askpass_helper_is_platform_appropriate(self) -> None:
+        settings = replace(self.settings, git_token="fake-token")
+        manager = WorkspaceManager(
+            settings,
+            url_resolver=lambda project: str(self.remote),
+        )
+
+        with manager._git_auth_env(require_token=True) as env:
+            helper = Path(env["GIT_ASKPASS"])
+            self.assertTrue(helper.exists())
+            self.assertEqual(env["GIT_ASKPASS_REQUIRE"], "force")
+            content = helper.read_text(encoding="utf-8")
+            if os.name == "nt":
+                self.assertEqual(helper.suffix.lower(), ".cmd")
+                self.assertIn("@echo off", content.lower())
+                self.assertIn("GITLAB_AGENT_GIT_USERNAME", content)
+            else:
+                self.assertTrue(content.startswith("#!/bin/sh"))
+                self.assertIn("GITLAB_AGENT_GIT_TOKEN", content)
+
+        self.assertFalse(helper.exists())
 
     def test_worktree_edit_commit_and_push(self) -> None:
         created = self.manager.create_workspace(
