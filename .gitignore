@@ -1,6 +1,21 @@
+# Local credentials / environment
 .env
+.env.*
+!.env.example
+
+# Python / uv
 .venv/
 __pycache__/
 *.pyc
+
+# Private key / certificate artifacts
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# OS / logs
 .DS_Store
 *.log
