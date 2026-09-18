@@ -10,6 +10,7 @@ from typing import Any
 from .config import AgentSettings
 from .doctor import run_doctor
 from .gitlab_api import GitLabAPI
+from .project_config import PROJECT_CONFIG_FILENAME, parse_project_config
 from .runner import CommandRunner
 from .workspace import WorkspaceManager
 
@@ -208,6 +209,22 @@ def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
         help="Show supported coding backends and whether their CLI executable is installed",
     )
 
+    p = sub.add_parser(
+        "project-config",
+        help="Read and validate .actualcoder.yaml from a GitLab project without creating a worktree",
+    )
+    p.add_argument("project")
+    p.add_argument(
+        "--ref",
+        default=None,
+        help="Ref containing .actualcoder.yaml (default: configured base ref)",
+    )
+    p.add_argument(
+        "--validate",
+        action="store_true",
+        help="Exit non-zero when schema/policy validation fails",
+    )
+
     p = sub.add_parser("create", help="Create an isolated worktree")
     p.add_argument("project", help="GitLab path_with_namespace, e.g. team/project")
     p.add_argument("--base-ref", default=None)
@@ -373,6 +390,26 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
             result = _safe_config(settings)
         elif args.command == "agents":
             result = _available_agents()
+        elif args.command == "project-config":
+            remote = manager.read_remote_text_file(
+                args.project,
+                PROJECT_CONFIG_FILENAME,
+                ref=args.ref,
+            )
+            parsed = parse_project_config(
+                remote["content"] if remote["exists"] else None,
+                settings=settings,
+                source_ref=str(remote["ref"]),
+                source_path=PROJECT_CONFIG_FILENAME,
+            )
+            result = {
+                "project": args.project,
+                "commit_sha": remote["commit_sha"],
+                **parsed.to_dict(),
+            }
+            if args.validate and not parsed.valid:
+                _print(result)
+                return 1
         elif args.command == "create":
             result = manager.create_workspace(
                 args.project,
