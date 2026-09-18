@@ -7,6 +7,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import uuid
 from contextlib import contextmanager
@@ -64,6 +65,11 @@ class WorkspaceState:
 
 class WorkspaceManager:
     """Owns cached Git repositories and isolated task worktrees."""
+
+    @staticmethod
+    def _progress(message: str) -> None:
+        # Progress goes to stderr so stdout can remain machine-readable JSON.
+        print(f"[gitlab-agent] {message}", file=sys.stderr, flush=True)
 
     def __init__(
         self,
@@ -271,10 +277,12 @@ class WorkspaceManager:
         auth = self._remote_needs_auth(remote_url)
 
         if not repo_path.exists():
+            self._progress(f"cloning repository cache for {project} ...")
             self._run_git(
                 ["clone", "--bare", remote_url, str(repo_path)],
                 auth=auth,
             )
+            self._progress(f"repository cache ready: {repo_path}")
             self._run_git(
                 [
                     "--git-dir",
@@ -294,10 +302,12 @@ class WorkspaceManager:
                     f"{current_remote!r} != {remote_url!r}"
                 )
 
+        self._progress(f"fetching latest refs for {project} ...")
         self._run_git(
             ["--git-dir", str(repo_path), "fetch", "--prune", "--tags", "origin"],
             auth=auth,
         )
+        self._progress(f"fetch complete for {project}")
         return repo_path
 
     def _resolve_base_sha(self, repo_path: Path, base_ref: str) -> str:
@@ -337,14 +347,17 @@ class WorkspaceManager:
                 "v0.2 workspaces require GitLab path_with_namespace, e.g. team/project"
             )
 
+        self._progress(f"preparing workspace for {project}")
         repo_path = self._ensure_cached_repo(project)
         effective_base = (base_ref or self.settings.default_base_ref).strip()
+        self._progress(f"resolving base ref {effective_base} ...")
         base_sha = self._resolve_base_sha(repo_path, effective_base)
 
         workspace_id = uuid.uuid4().hex[:12]
         branch = f"{self.settings.branch_prefix}{_slug(task_slug)}-{workspace_id[:8]}"
         worktree_path = self.worktrees_dir / workspace_id
 
+        self._progress(f"creating worktree {workspace_id} on branch {branch} ...")
         self._run_git(
             [
                 "--git-dir",
@@ -370,6 +383,7 @@ class WorkspaceManager:
             last_commit=base_sha,
         )
         self._save_state(state)
+        self._progress(f"workspace ready: {worktree_path}")
         return self.status(workspace_id)
 
     def status(self, workspace_id: str) -> dict[str, object]:
