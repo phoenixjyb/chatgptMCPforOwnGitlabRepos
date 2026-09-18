@@ -357,6 +357,7 @@ class WorkspaceManager:
         relative_path: str,
         *,
         ref: str | None = None,
+        refresh_remote: bool = True,
     ) -> dict[str, object]:
         """Read a UTF-8 text file from a fetched remote ref without creating a worktree."""
 
@@ -373,7 +374,17 @@ class WorkspaceManager:
         ):
             raise ValueError("relative_path must be a safe repository-relative path")
 
-        repo_path = self._ensure_cached_repo(project)
+        if refresh_remote:
+            repo_path = self._ensure_cached_repo(project)
+        else:
+            self.settings.assert_project_allowed_for_workspace(project)
+            repo_path = self._repo_path(project)
+            if not repo_path.is_dir():
+                raise RuntimeError(
+                    f"Repository cache is not prepared for {project!r}; "
+                    "refresh_remote=False requires an existing managed cache"
+                )
+
         effective_ref = (ref or self.settings.default_base_ref).strip()
         commit_sha = self._resolve_base_sha(repo_path, effective_ref)
         spec = f"{commit_sha}:{rel}"
