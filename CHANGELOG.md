@@ -17,6 +17,9 @@
 - Require interactive human confirmation before writes unless `--yes` is explicitly supplied.
 - Keep `--yes` unable to bypass validation/protected-path/secret gates.
 - Add finish planning/execution regression tests.
+- Re-read status/diff/changed paths after validation commands so validation-generated changes are included in review/security checks.
+- Fingerprint the reviewed post-validation workspace state and refuse commit/push if HEAD, status, push state, or diff changes before execution.
+- Read the immutable workspace-base project contract from the existing managed cache without an unnecessary remote fetch.
 
 ## 0.3.0-alpha.4
 
