@@ -197,22 +197,41 @@ class WorkspaceManager:
             yield env
             return
 
-        fd, script_name = tempfile.mkstemp(prefix="gitlab-agent-askpass-", text=True)
+        suffix = ".cmd" if os.name == "nt" else ""
+        fd, script_name = tempfile.mkstemp(
+            prefix="gitlab-agent-askpass-",
+            suffix=suffix,
+            text=True,
+        )
         script = Path(script_name)
         try:
-            os.write(
-                fd,
-                (
+            if os.name == "nt":
+                askpass = (
+                    "@echo off\r\n"
+                    "setlocal\r\n"
+                    "set \"prompt=%~1\"\r\n"
+                    "if /I not \"%prompt:Username=%\"==\"%prompt%\" (\r\n"
+                    "  echo %GITLAB_AGENT_GIT_USERNAME%\r\n"
+                    ") else (\r\n"
+                    "  echo %GITLAB_AGENT_GIT_TOKEN%\r\n"
+                    ")\r\n"
+                )
+            else:
+                askpass = (
                     "#!/bin/sh\n"
                     "case \"$1\" in\n"
                     "  *Username*) printf '%s\\n' \"$GITLAB_AGENT_GIT_USERNAME\" ;;\n"
                     "  *)          printf '%s\\n' \"$GITLAB_AGENT_GIT_TOKEN\" ;;\n"
                     "esac\n"
-                ).encode("utf-8"),
-            )
+                )
+
+            os.write(fd, askpass.encode("utf-8"))
             os.close(fd)
-            script.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+            if os.name != "nt":
+                script.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
             env["GIT_ASKPASS"] = str(script)
+            env["GIT_ASKPASS_REQUIRE"] = "force"
             env["GITLAB_AGENT_GIT_USERNAME"] = self.settings.git_username
             env["GITLAB_AGENT_GIT_TOKEN"] = token
             yield env
