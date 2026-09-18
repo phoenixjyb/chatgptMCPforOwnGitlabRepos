@@ -21,7 +21,7 @@ class FakeManager:
         }
 
 
-class CodingAgentCLITests(unittest.TestCase):
+class ActualCoderCLITests(unittest.TestCase):
     def test_copilot_handoff_is_agent_neutral(self) -> None:
         result = _handoff(
             FakeManager(),  # type: ignore[arg-type]
@@ -34,7 +34,7 @@ class CodingAgentCLITests(unittest.TestCase):
             result["agent_command"],
             "cd /tmp/worktrees/abc123 && copilot",
         )
-        self.assertIn("selected by CodingAgent", str(result["agent_prompt"]))
+        self.assertIn("selected by ActualCoder", str(result["agent_prompt"]))
         self.assertIn("Implement a small fix", str(result["agent_prompt"]))
         self.assertNotIn("codex_command", result)
         self.assertNotIn("codex_prompt", result)
@@ -54,8 +54,8 @@ class CodingAgentCLITests(unittest.TestCase):
         self.assertEqual(result["codex_command"], result["agent_command"])
         self.assertEqual(result["codex_prompt"], result["agent_prompt"])
 
-    def test_codingagent_parser_accepts_backend_selection(self) -> None:
-        parser = _build_parser(prog="codingagent")
+    def test_actual_coder_parser_accepts_backend_selection(self) -> None:
+        parser = _build_parser(prog="actual-coder")
         args = parser.parse_args(
             [
                 "task",
@@ -69,6 +69,21 @@ class CodingAgentCLITests(unittest.TestCase):
         self.assertEqual(args.command, "task")
         self.assertEqual(args.agent, "copilot")
         self.assertEqual(args.goal, "Fix it")
+
+    def test_codingagent_compatibility_alias_still_accepts_backend_selection(self) -> None:
+        parser = _build_parser(prog="codingagent")
+        args = parser.parse_args(
+            [
+                "resume",
+                "abc123",
+                "--agent",
+                "codex",
+                "--goal",
+                "Continue",
+            ]
+        )
+        self.assertEqual(args.command, "resume")
+        self.assertEqual(args.agent, "codex")
 
     def test_inspection_only_goal_does_not_instruct_code_changes(self) -> None:
         status = FakeManager().status("abc123")
