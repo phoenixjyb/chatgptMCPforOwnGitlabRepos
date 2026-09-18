@@ -77,7 +77,7 @@ def _agent_prompt(
 
     requested_goal = goal.strip() or "<describe the coding goal here>"
     return (
-        f"You are the {agent} coding backend selected by CodingAgent.\n"
+        f"You are the {agent} coding backend selected by ActualCoder.\n"
         "You are working in an isolated Git worktree managed by gitlab-agent.\n\n"
         f"Project: {project}\n"
         f"Base ref: {base_ref}\n"
@@ -173,14 +173,15 @@ def _safe_config(settings: AgentSettings) -> dict[str, object]:
 
 
 def _build_parser(prog: str = "gitlab-agent") -> argparse.ArgumentParser:
-    if prog == "codingagent":
+    if prog in {"actual-coder", "codingagent"}:
+        product_name = "ActualCoder" if prog == "actual-coder" else "CodingAgent (compatibility alias)"
         description = (
-            "CodingAgent: agent-neutral coding orchestration for isolated GitLab "
+            f"{product_name}: agent-neutral coding orchestration for isolated GitLab "
             "worktrees. Supports Codex and GitHub Copilot CLI backends."
         )
     else:
         description = (
-            "Low-level GitLab worktree/build/commit/MR controller used by CodingAgent."
+            "Low-level GitLab worktree/build/commit/MR controller used by ActualCoder."
         )
 
     parser = argparse.ArgumentParser(
