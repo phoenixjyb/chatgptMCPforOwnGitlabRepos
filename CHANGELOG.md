@@ -13,6 +13,7 @@
 - Add `gitlab-agent` JSON CLI.
 - Add local Git workflow tests.
 - Add CI invariant preventing accidental OpenAI model API integration.
+- End-to-end smoke-tested against a real private self-hosted GitLab: isolated worktree → local edit → controlled command → diff → commit → feature-branch push → Merge Request creation.
 
 ## 0.1.0 - Initial public version
 
