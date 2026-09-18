@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.0-alpha.3 - Unreleased
+## 0.2.0-alpha.4 - Unreleased
+
+- Introduce **CodingAgent** as the agent-neutral user-facing coding layer.
+- Add the `codingagent` console command while retaining `gitlab-agent` as the lower-level GitLab/worktree controller.
+- Add first-class `--agent codex|copilot` selection for task, resume, branch recovery, and MR recovery handoffs.
+- Replace Codex-specific handoff fields with `agent`, `agent_command`, and `agent_prompt`; keep Codex aliases for compatibility.
+- Add a CodingAgent quickstart and backend-handoff regression tests.
+- Verify both packaged CLIs in CI.
+- Real coding validation already includes a GitHub Copilot CLI C++ change pushed to an existing GitLab MR.
+
+## 0.2.0-alpha.3
 
 - Add `checkout-branch` to reconstruct a managed local worktree from an existing remote feature branch.
 - Add `checkout-mr` to resume a same-project GitLab MR after local cleanup/restart.
