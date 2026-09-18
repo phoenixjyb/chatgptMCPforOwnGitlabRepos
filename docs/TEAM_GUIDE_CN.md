@@ -378,6 +378,16 @@ skip  = 可选项未配置或显式跳过
 actual-coder project-config team/project-a --validate
 ```
 
+在提交到项目之前，也可以先用本地候选文件验证：
+
+```bash
+actual-coder project-config team/project-a \
+  --file .actualcoder.example.yaml \
+  --validate
+```
+
+这一步不会访问目标项目的 `.actualcoder.yaml`，只会用当前用户策略检查本地候选文件。
+
 指定 ref：
 
 ```bash
