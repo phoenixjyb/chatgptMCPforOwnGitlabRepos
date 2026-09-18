@@ -77,6 +77,8 @@ gitlab-agent commit
 gitlab-agent push
 gitlab-agent push-update
 gitlab-agent push-mr
+gitlab-agent checkout-branch
+gitlab-agent checkout-mr
 gitlab-agent cleanup
 ```
 
@@ -247,5 +249,6 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 - `v0.1.0`: tagged read-only release.
 - `v0.2.0-dev`: active development branch for the local Codex coding engine.
-- Package version on the v0.2 branch: `0.2.0a2`.
+- Package version on the v0.2 branch: `0.2.0a3`.
 - Alpha.2 adds global installation, Codex task/resume handoffs, and iterative pushes to an existing MR branch.
+- Alpha.3 adds reconstruction of local workspaces from existing remote branches or GitLab MRs after cleanup/restart.
