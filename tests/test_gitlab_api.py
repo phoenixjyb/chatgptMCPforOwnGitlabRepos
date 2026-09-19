@@ -75,6 +75,49 @@ class GitLabAPITests(unittest.TestCase):
             },
         )
 
+    def test_pipeline_jobs_paginates_until_short_page(self) -> None:
+        api = GitLabAPI(self.settings())
+        first_page = [
+            {"id": index, "status": "success"}
+            for index in range(100)
+        ]
+        second_page = [{"id": 100, "status": "failed"}]
+
+        with patch.object(
+            api,
+            "get_json",
+            side_effect=[first_page, second_page],
+        ) as get_json:
+            result = api.pipeline_jobs(
+                "team/project",
+                77,
+                per_page=100,
+                max_pages=3,
+            )
+
+        self.assertEqual(len(result), 101)
+        self.assertEqual(result[-1]["id"], 100)
+        self.assertEqual(get_json.call_count, 2)
+        self.assertEqual(get_json.call_args_list[0].kwargs["params"]["page"], 1)
+        self.assertEqual(get_json.call_args_list[1].kwargs["params"]["page"], 2)
+
+    def test_pipeline_jobs_refuses_silent_pagination_truncation(self) -> None:
+        api = GitLabAPI(self.settings())
+        full_page = [{"id": index} for index in range(2)]
+
+        with patch.object(
+            api,
+            "get_json",
+            side_effect=[full_page, full_page],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "potentially incomplete"):
+                api.pipeline_jobs(
+                    "team/project",
+                    77,
+                    per_page=2,
+                    max_pages=2,
+                )
+
     def test_job_trace_reads_text(self) -> None:
         response = MagicMock()
         response.is_error = False
