@@ -147,9 +147,26 @@ def build_finish_plan(
     # post-validation state that could actually be committed/pushed.
     status = manager.status(workspace_id)
     changed_paths = manager.changed_paths(workspace_id)
-    diff_result = manager.diff(workspace_id)
-    security_diff = manager.security_diff(workspace_id)
-    secret_findings = scan_added_diff_for_secrets(security_diff)
+    reviewability = manager.reviewability(workspace_id, changed_paths)
+
+    if bool(reviewability.get("ok")):
+        diff_result = manager.diff(workspace_id)
+        security_diff = manager.security_diff(workspace_id)
+        secret_findings = scan_added_diff_for_secrets(security_diff)
+    else:
+        security_diff = ""
+        secret_findings = []
+        diff_result = {
+            "workspace_id": workspace_id,
+            "base_sha": status.get("base_sha"),
+            "truncated": True,
+            "original_bytes": None,
+            "diff": (
+                "Full diff/security scan skipped because one or more changed "
+                "paths are not safely reviewable as bounded UTF-8 text."
+            ),
+        }
+
     protected_changes = [
         path
         for path in changed_paths
@@ -171,6 +188,19 @@ def build_finish_plan(
 
     if validation_blocked:
         blockers.append("One or more required project validation commands failed.")
+
+    if not bool(reviewability.get("ok")):
+        blockers.append(
+            "One or more changed paths cannot be fully reviewed/secret-scanned "
+            "by ActualCoder; inspect the reviewability issues and use the low-level "
+            "workflow intentionally if this change must be handled."
+        )
+
+    if bool(reviewability.get("ok")) and bool(diff_result.get("truncated")):
+        blockers.append(
+            "The human-facing review diff was truncated by the configured output cap. "
+            "Increase GITLAB_COMMAND_MAX_OUTPUT_BYTES or split the change before finish."
+        )
 
     if protected_changes and not allow_protected:
         blockers.append(
@@ -263,10 +293,12 @@ def build_finish_plan(
             "effective": project_context,
         },
         "changed_paths": changed_paths,
+        "reviewability": reviewability,
         "protected_paths": protected_rules,
         "protected_path_changes": protected_changes,
         "secret_scan": {
-            "ok": not secret_findings,
+            "ok": bool(reviewability.get("ok")) and not secret_findings,
+            "coverage_complete": bool(reviewability.get("ok")),
             "findings": secret_findings,
             "overridden": bool(secret_findings and allow_secret_match),
         },
