@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+import re
 from typing import Any
 
 import yaml
@@ -11,6 +12,19 @@ from .config import AgentSettings
 PROJECT_CONFIG_FILENAME = ".actualcoder.yaml"
 PROJECT_CONFIG_VERSION = 1
 KNOWN_BACKENDS = {"codex", "copilot"}
+
+PROJECT_CONFIG_MAX_BYTES = 64 * 1024
+MAX_PREFERRED_AGENTS = 16
+MAX_VALIDATION_COMMANDS = 32
+MAX_VALIDATION_ARGV = 64
+MAX_VALIDATION_ARG_BYTES = 4096
+MAX_PROTECTED_PATHS = 128
+MAX_PROTECTED_PATH_LENGTH = 512
+MAX_INSTRUCTIONS = 32
+MAX_INSTRUCTION_LENGTH = 2000
+MAX_REQUIRED_EXECUTABLES = 64
+MAX_EXECUTABLE_LENGTH = 128
+_SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/-]{1,200}$")
 
 
 @dataclass(frozen=True)
@@ -62,28 +76,56 @@ def _string_list(
     value: Any,
     label: str,
     errors: list[str],
+    *,
+    max_items: int,
+    max_length: int,
 ) -> list[str]:
     if value is None:
         return []
     if not isinstance(value, list):
         errors.append(f"{label} must be a list")
         return []
+    if len(value) > max_items:
+        errors.append(f"{label} must contain at most {max_items} items")
+
     out: list[str] = []
-    for index, item in enumerate(value):
+    for index, item in enumerate(value[:max_items]):
         if not isinstance(item, str) or not item.strip():
             errors.append(f"{label}[{index}] must be a non-empty string")
             continue
-        out.append(item.strip())
+        normalized = item.strip()
+        if len(normalized) > max_length:
+            errors.append(
+                f"{label}[{index}] must be <= {max_length} characters"
+            )
+            continue
+        if "\x00" in normalized:
+            errors.append(f"{label}[{index}] must not contain NUL")
+            continue
+        out.append(normalized)
     return out
 
 
-def _safe_relative_path(value: str) -> bool:
-    path = PurePosixPath(value)
-    if path.is_absolute():
+def _safe_git_ref(value: str) -> bool:
+    if not _SAFE_REF_RE.fullmatch(value):
         return False
-    if any(part in {"..", ""} for part in path.parts):
+    if value.startswith(("-", "/", ".")) or value.endswith(("/", ".", ".lock")):
+        return False
+    if any(token in value for token in ("..", "//", "@{")):
         return False
     return True
+
+
+def _safe_relative_path(value: str) -> bool:
+    normalized = value.replace("\\", "/")
+    if not normalized or normalized in {".", "./"} or ":" in normalized:
+        return False
+    path = PurePosixPath(normalized)
+    if path.is_absolute():
+        return False
+    if any(part in {"..", "", "."} for part in path.parts):
+        return False
+    return len(normalized) <= MAX_PROTECTED_PATH_LENGTH
 
 
 def parse_project_config(
@@ -125,6 +167,23 @@ def parse_project_config(
             warnings=warnings,
         )
 
+    text_bytes = len(text.encode("utf-8", errors="replace"))
+    if text_bytes > PROJECT_CONFIG_MAX_BYTES:
+        errors.append(
+            f"{source_path} is too large: {text_bytes} bytes; "
+            f"maximum is {PROJECT_CONFIG_MAX_BYTES}"
+        )
+        return ProjectConfigResult(
+            found=True,
+            valid=False,
+            source_ref=source_ref,
+            source_path=source_path,
+            contract={},
+            effective={},
+            errors=errors,
+            warnings=warnings,
+        )
+
     try:
         loaded = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -162,6 +221,12 @@ def parse_project_config(
         base_branch = settings.default_base_ref
     else:
         base_branch = base_branch.strip()
+        if not _safe_git_ref(base_branch):
+            errors.append(
+                "project.base_branch must be a conservative Git ref using only "
+                "ASCII letters/digits and . _ / - without traversal/special ref syntax"
+            )
+            base_branch = settings.default_base_ref
 
     agents = _expect_mapping(root.get("agents"), "agents", errors)
     _unknown_keys(agents, {"preferred"}, "agents", errors)
@@ -169,6 +234,8 @@ def parse_project_config(
         agents.get("preferred"),
         "agents.preferred",
         errors,
+        max_items=MAX_PREFERRED_AGENTS,
+        max_length=64,
     )
     for agent in preferred_agents:
         if agent not in KNOWN_BACKENDS:
@@ -186,8 +253,12 @@ def parse_project_config(
     if not isinstance(raw_commands, list):
         errors.append("validation.commands must be a list")
         raw_commands = []
+    if len(raw_commands) > MAX_VALIDATION_COMMANDS:
+        errors.append(
+            f"validation.commands must contain at most {MAX_VALIDATION_COMMANDS} items"
+        )
 
-    for index, raw_command in enumerate(raw_commands):
+    for index, raw_command in enumerate(raw_commands[:MAX_VALIDATION_COMMANDS]):
         label = f"validation.commands[{index}]"
         command = _expect_mapping(raw_command, label, errors)
         _unknown_keys(
@@ -203,15 +274,31 @@ def parse_project_config(
             name = f"command-{index + 1}"
         else:
             name = name.strip()
+            if len(name) > 200:
+                errors.append(f"{label}.name must be <= 200 characters")
+                name = name[:200]
 
         argv = command.get("argv")
         if not isinstance(argv, list) or not argv:
             errors.append(f"{label}.argv must be a non-empty list of strings")
             argv = []
+        if len(argv) > MAX_VALIDATION_ARGV:
+            errors.append(
+                f"{label}.argv must contain at most {MAX_VALIDATION_ARGV} items"
+            )
         normalized_argv: list[str] = []
-        for arg_index, arg in enumerate(argv):
+        for arg_index, arg in enumerate(argv[:MAX_VALIDATION_ARGV]):
             if not isinstance(arg, str) or not arg:
                 errors.append(f"{label}.argv[{arg_index}] must be a non-empty string")
+                continue
+            if "\x00" in arg:
+                errors.append(f"{label}.argv[{arg_index}] must not contain NUL")
+                continue
+            if len(arg.encode("utf-8", errors="replace")) > MAX_VALIDATION_ARG_BYTES:
+                errors.append(
+                    f"{label}.argv[{arg_index}] must be <= "
+                    f"{MAX_VALIDATION_ARG_BYTES} UTF-8 bytes"
+                )
                 continue
             normalized_argv.append(arg)
 
@@ -256,6 +343,8 @@ def parse_project_config(
         root.get("protected_paths"),
         "protected_paths",
         errors,
+        max_items=MAX_PROTECTED_PATHS,
+        max_length=MAX_PROTECTED_PATH_LENGTH,
     )
     for path in protected_paths:
         if not _safe_relative_path(path):
@@ -267,6 +356,8 @@ def parse_project_config(
         root.get("instructions"),
         "instructions",
         errors,
+        max_items=MAX_INSTRUCTIONS,
+        max_length=MAX_INSTRUCTION_LENGTH,
     )
 
     executables = _expect_mapping(root.get("executables"), "executables", errors)
@@ -275,6 +366,8 @@ def parse_project_config(
         executables.get("required"),
         "executables.required",
         errors,
+        max_items=MAX_REQUIRED_EXECUTABLES,
+        max_length=MAX_EXECUTABLE_LENGTH,
     )
     for executable in required_executables:
         if "/" in executable or "\\" in executable:
@@ -295,6 +388,12 @@ def parse_project_config(
         target_branch = base_branch
     else:
         target_branch = target_branch.strip()
+        if not _safe_git_ref(target_branch):
+            errors.append(
+                "mr.target_branch must be a conservative Git ref using only "
+                "ASCII letters/digits and . _ / - without traversal/special ref syntax"
+            )
+            target_branch = base_branch
 
     title_prefix = mr.get("title_prefix", "")
     if not isinstance(title_prefix, str):
