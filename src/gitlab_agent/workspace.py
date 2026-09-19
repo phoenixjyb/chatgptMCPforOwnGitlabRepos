@@ -889,6 +889,17 @@ class WorkspaceManager:
                 continue
 
             existing_file_bytes += size
+            if existing_file_bytes > max_total_bytes:
+                issues.append(
+                    {
+                        "path": "<workspace>",
+                        "reason": "changed_content_too_large",
+                        "bytes": existing_file_bytes,
+                        "limit": max_total_bytes,
+                    }
+                )
+                break
+
             if size > self.settings.max_file_bytes:
                 issues.append(
                     {
@@ -918,16 +929,6 @@ class WorkspaceManager:
                         "error": str(exc),
                     }
                 )
-
-        if existing_file_bytes > max_total_bytes:
-            issues.append(
-                {
-                    "path": "<workspace>",
-                    "reason": "changed_content_too_large",
-                    "bytes": existing_file_bytes,
-                    "limit": max_total_bytes,
-                }
-            )
 
         return {
             "ok": not issues,
