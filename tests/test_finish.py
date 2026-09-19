@@ -97,6 +97,7 @@ class FakeManager:
         *,
         ref: str | None = None,
         refresh_remote: bool = True,
+        max_bytes: int | None = None,
     ) -> dict[str, object]:
         return {
             "project": project,
