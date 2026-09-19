@@ -143,6 +143,24 @@ protected_paths:
         self.assertTrue(any("Unknown key" in item for item in result.errors))
         self.assertTrue(any("safe repository-relative path" in item for item in result.errors))
 
+    def test_duplicate_yaml_keys_are_rejected(self) -> None:
+        text = """
+version: 1
+project:
+  base_branch: main
+  base_branch: develop
+"""
+        result = parse_project_config(
+            text,
+            settings=self.settings,
+            source_ref="main",
+        )
+
+        self.assertFalse(result.valid)
+        self.assertTrue(
+            any("Duplicate YAML mapping key" in item for item in result.errors)
+        )
+
     def test_contract_size_is_bounded_before_yaml_parse(self) -> None:
         text = "version: 1\ninstructions:\n  - " + ("x" * 70000)
         result = parse_project_config(
