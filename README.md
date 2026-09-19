@@ -181,6 +181,15 @@ Requirements:
 - network access to the target GitLab;
 - at least one coding backend: Codex CLI or GitHub Copilot CLI.
 
+Existing clones created before the ReasonFirst rename should update their remote once:
+
+```bash
+git remote set-url origin https://github.com/phoenixjyb/reasonFirst.git
+git remote -v
+```
+
+GitHub redirects the previous repository URL, but updating the remote keeps local/team documentation unambiguous.
+
 Clone and prepare on macOS/Linux:
 
 ```bash
