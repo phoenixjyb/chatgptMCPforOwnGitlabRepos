@@ -425,7 +425,7 @@ get_file
 
 本项目：
 
-- [团队安装与日常使用](TEAM_GUIDE_CN.md)
+- [ReasonFirst Onboarding Guide](ONBOARDING_GUIDE_CN.md)
 - [ActualCoder Quickstart](ACTUAL_CODER_QUICKSTART.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Security](../SECURITY.md)
