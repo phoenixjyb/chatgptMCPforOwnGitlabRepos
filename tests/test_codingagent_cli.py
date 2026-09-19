@@ -51,6 +51,7 @@ class FakeStartManager:
         *,
         ref: str | None = None,
         refresh_remote: bool = True,
+        max_bytes: int | None = None,
     ) -> dict[str, object]:
         self.last_read_refresh_remote = refresh_remote
         return {
