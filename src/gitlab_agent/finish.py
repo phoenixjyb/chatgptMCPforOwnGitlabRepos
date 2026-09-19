@@ -6,7 +6,11 @@ import json
 from typing import Any
 
 from .config import AgentSettings
-from .project_config import PROJECT_CONFIG_FILENAME, parse_project_config
+from .project_config import (
+    PROJECT_CONFIG_FILENAME,
+    PROJECT_CONFIG_MAX_BYTES,
+    parse_project_config,
+)
 from .runner import CommandRunner
 from .secret_scan import scan_added_diff_for_secrets
 from .workspace import WorkspaceManager
@@ -40,6 +44,7 @@ def _load_base_contract(
         PROJECT_CONFIG_FILENAME,
         ref=state.base_sha,
         refresh_remote=False,
+        max_bytes=PROJECT_CONFIG_MAX_BYTES,
     )
     parsed = parse_project_config(
         remote["content"] if remote["exists"] else None,
