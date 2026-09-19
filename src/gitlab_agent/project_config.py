@@ -91,13 +91,14 @@ def _expect_mapping(value: Any, label: str, errors: list[str]) -> dict[str, Any]
 
 
 def _unknown_keys(
-    data: dict[str, Any],
+    data: dict[Any, Any],
     allowed: set[str],
     label: str,
     errors: list[str],
 ) -> None:
-    for key in sorted(set(data) - allowed):
-        errors.append(f"Unknown key {label}.{key}")
+    unknown = [key for key in data if key not in allowed]
+    for key in sorted(unknown, key=lambda item: repr(item)):
+        errors.append(f"Unknown key {label}.{key!r}")
 
 
 def _string_list(
@@ -236,9 +237,13 @@ def parse_project_config(
     )
 
     version = root.get("version")
-    if version != PROJECT_CONFIG_VERSION:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != PROJECT_CONFIG_VERSION
+    ):
         errors.append(
-            f"version must be {PROJECT_CONFIG_VERSION}; got {version!r}"
+            f"version must be integer {PROJECT_CONFIG_VERSION}; got {version!r}"
         )
 
     project = _expect_mapping(root.get("project"), "project", errors)
