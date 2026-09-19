@@ -120,7 +120,7 @@ See [docs/V0.3_RELEASE_AUDIT_CN.md](docs/V0.3_RELEASE_AUDIT_CN.md) for the relea
 - Make the read MCP/smoke test use the same per-user config lookup as ActualCoder.
 - Add Linux/macOS/Windows CI coverage for the packaged CLI/workspace workflow.
 - Add `docs/OPENAI_TUNNEL_TEAM_SETUP_CN.md` covering per-user Tunnel ID, Runtime API Key, permissions, platform installs, and credential storage.
-- Expand the Chinese team guide and README with native Windows support.
+- Expand the Chinese onboarding guide and README with native Windows support.
 - Document macOS Keychain, Linux protected secret files/Secret Service, and Windows DPAPI/ACL guidance.
 - Keep ChatGPT Pro MCP usage read/fetch-only; local GitLab writes remain in ActualCoder.
 
@@ -133,7 +133,7 @@ See [docs/V0.3_RELEASE_AUDIT_CN.md](docs/V0.3_RELEASE_AUDIT_CN.md) for the relea
 - Update README, architecture docs, installer output, quickstart, tests, and CI for the new name.
 - Keep `gitlab-agent` unchanged as the low-level GitLab/worktree control plane.
 - Rewrite the README around the tested ActualCoder/team workflow.
-- Add `docs/TEAM_GUIDE_CN.md` as the canonical Chinese team installation/configuration/usage guide.
+- Add the canonical Chinese onboarding/install/configuration/usage guide (now `docs/ONBOARDING_GUIDE_CN.md`).
 - Add dependency-free tracked-file/full-history secret scanning and enforce it in CI.
 - Harden `.gitignore`, `.env.example`, security guidance, and troubleshooting documentation for team distribution.
 
