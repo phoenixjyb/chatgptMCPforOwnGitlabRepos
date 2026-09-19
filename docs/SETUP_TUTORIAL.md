@@ -1,6 +1,6 @@
-# Tutorial: Connect ChatGPT to a Private / Self-Hosted GitLab with MCP
+# ReasonFirst Tutorial: Connect ChatGPT to a Private / Self-Hosted GitLab with MCP
 
-> This document covers the **read-only ChatGPT MCP** path. For the local coding workflow, see [ActualCoder Quickstart](ACTUAL_CODER_QUICKSTART.md). Team members who read Chinese should use [TEAM_GUIDE_CN.md](TEAM_GUIDE_CN.md) as the main installation/usage guide.
+> This document covers the **read-only GitLab bridge** used by ReasonFirst's Reasoning Plane. For the local coding workflow, see [ActualCoder Quickstart](ACTUAL_CODER_QUICKSTART.md). For the product philosophy, see [ReasonFirst Design Philosophy](DESIGN_PHILOSOPHY.md). Team members who read Chinese should use [TEAM_GUIDE_CN.md](TEAM_GUIDE_CN.md) as the main installation/usage guide.
 
 This tutorial shows how to connect a self-managed GitLab to ordinary ChatGPT conversations without exposing the GitLab instance directly to the public Internet.
 
