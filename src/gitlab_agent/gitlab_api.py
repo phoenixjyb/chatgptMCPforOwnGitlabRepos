@@ -22,7 +22,7 @@ class GitLabAPI:
         return {
             "PRIVATE-TOKEN": self.settings.api_token,
             "Accept": "application/json",
-            "User-Agent": "chatgpt-selfhosted-gitlab-mcp/0.2",
+            "User-Agent": "reasonfirst-gitlab-control/0.3",
         }
 
     def _client(self) -> httpx.Client:
