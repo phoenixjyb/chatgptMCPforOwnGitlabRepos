@@ -47,8 +47,8 @@ brew install uv
 ## 2. 克隆项目
 
 ```bash
-git clone https://github.com/phoenixjyb/reasonfirst.git
-cd reasonfirst
+git clone https://github.com/phoenixjyb/reasonFirst.git
+cd reasonFirst
 uv sync
 ```
 
