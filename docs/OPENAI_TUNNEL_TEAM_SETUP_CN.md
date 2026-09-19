@@ -136,8 +136,8 @@ go build -o bin\tunnel-client.exe .\cmd\client
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/phoenixjyb/reasonfirst.git
-cd reasonfirst
+git clone https://github.com/phoenixjyb/reasonFirst.git
+cd reasonFirst
 uv sync
 bash scripts/install_user.sh
 ```
@@ -147,8 +147,8 @@ MCP launcher：`run_mcp.sh`。
 ### Windows PowerShell
 
 ```powershell
-git clone https://github.com/phoenixjyb/reasonfirst.git
-Set-Location reasonfirst
+git clone https://github.com/phoenixjyb/reasonFirst.git
+Set-Location reasonFirst
 uv sync
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install_user.ps1
 ```
