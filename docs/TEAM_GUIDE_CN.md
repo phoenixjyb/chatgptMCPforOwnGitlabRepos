@@ -146,6 +146,21 @@ uv --version
 
 ## 2. 克隆仓库
 
+仓库已更名为：
+
+```text
+phoenixjyb/reasonFirst
+```
+
+已有旧 clone 建议一次性更新 remote：
+
+```bash
+git remote set-url origin https://github.com/phoenixjyb/reasonFirst.git
+git remote -v
+```
+
+新 clone：
+
 ```bash
 git clone https://github.com/phoenixjyb/reasonFirst.git
 cd reasonFirst
