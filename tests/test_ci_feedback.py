@@ -1,0 +1,161 @@
+from __future__ import annotations
+
+import unittest
+from types import SimpleNamespace
+
+from gitlab_agent.ci_feedback import collect_ci_feedback
+
+
+class FakeManager:
+    def __init__(self, *, head: str = "head123") -> None:
+        self.head = head
+        self.state = SimpleNamespace(
+            pushed=True,
+            merge_request_url="https://gitlab.example.test/team/project/-/merge_requests/3",
+        )
+
+    def status(self, workspace_id: str) -> dict[str, object]:
+        return {
+            "workspace_id": workspace_id,
+            "project": "team/project",
+            "branch": "chatgpt/fix-abc",
+            "head": self.head,
+        }
+
+    def get_state(self, workspace_id: str) -> SimpleNamespace:
+        return self.state
+
+
+class FakeAPI:
+    def __init__(
+        self,
+        *,
+        pipeline_sha: str = "head123",
+        pipeline_status: str = "failed",
+        pipelines: list[dict[str, object]] | None = None,
+    ) -> None:
+        self.pipeline_sha = pipeline_sha
+        self.pipeline_status = pipeline_status
+        self._pipelines = pipelines
+        self.trace_calls: list[int] = []
+
+    def pipelines(
+        self,
+        project: str,
+        *,
+        ref: str,
+        per_page: int = 20,
+    ) -> list[dict[str, object]]:
+        if self._pipelines is not None:
+            return self._pipelines
+        return [
+            {
+                "id": 41,
+                "iid": 41,
+                "status": self.pipeline_status,
+                "ref": ref,
+                "sha": self.pipeline_sha,
+                "source": "push",
+                "web_url": "https://gitlab.example.test/pipelines/41",
+                "created_at": "2026-09-19T00:00:00Z",
+                "updated_at": "2026-09-19T00:01:00Z",
+            }
+        ]
+
+    def pipeline_jobs(
+        self,
+        project: str,
+        pipeline_id: int,
+        *,
+        include_retried: bool = False,
+        per_page: int = 100,
+    ) -> list[dict[str, object]]:
+        return [
+            {
+                "id": 1001,
+                "name": "unit-tests",
+                "stage": "test",
+                "status": "failed",
+                "allow_failure": False,
+                "failure_reason": "script_failure",
+                "web_url": "https://gitlab.example.test/jobs/1001",
+            },
+            {
+                "id": 1002,
+                "name": "lint",
+                "stage": "test",
+                "status": "success",
+                "allow_failure": False,
+                "web_url": "https://gitlab.example.test/jobs/1002",
+            },
+        ]
+
+    def job_trace(self, project: str, job_id: int) -> str:
+        self.trace_calls.append(job_id)
+        token = "gl" + "pat-" + "abcdefghijklmnop"
+        return (
+            "\x1b[31mFAILED test_timeout\x1b[0m\n"
+            f"GITLAB_TOKEN={token}\n"
+            "AssertionError: expected 3 got 4\n"
+        )
+
+
+class CIFeedbackTests(unittest.TestCase):
+    def test_failed_pipeline_collects_redacted_failed_job_context(self) -> None:
+        result = collect_ci_feedback(
+            manager=FakeManager(),  # type: ignore[arg-type]
+            api=FakeAPI(),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+        )
+
+        self.assertTrue(result["found"])
+        self.assertTrue(result["head_matches_pipeline"])
+        self.assertFalse(result["pipeline_success"])
+        self.assertEqual(len(result["failed_jobs"]), 1)
+        self.assertEqual(len(result["blocking_failed_jobs"]), 1)
+        self.assertEqual(len(result["failed_job_logs"]), 1)
+
+        log = result["failed_job_logs"][0]
+        self.assertNotIn("glpat-", str(log["content"]))
+        self.assertNotIn("\x1b[31m", str(log["content"]))
+        self.assertIn("[REDACTED", str(log["content"]))
+        self.assertIn("untrusted", str(result["repair_context"]).lower())
+
+    def test_stale_pipeline_is_reported(self) -> None:
+        result = collect_ci_feedback(
+            manager=FakeManager(head="new-head"),  # type: ignore[arg-type]
+            api=FakeAPI(pipeline_sha="old-head"),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+        )
+
+        self.assertTrue(result["found"])
+        self.assertTrue(result["stale_for_workspace"])
+        self.assertFalse(result["head_matches_pipeline"])
+        self.assertTrue(any("stale" in item.lower() for item in result["warnings"]))
+
+    def test_no_pipeline_is_nonfatal_inspection_result(self) -> None:
+        result = collect_ci_feedback(
+            manager=FakeManager(),  # type: ignore[arg-type]
+            api=FakeAPI(pipelines=[]),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+        )
+
+        self.assertFalse(result["found"])
+        self.assertIsNone(result["pipeline"])
+        self.assertIn("no pipeline", str(result["repair_context"]).lower())
+
+    def test_running_pipeline_warns_results_may_change(self) -> None:
+        result = collect_ci_feedback(
+            manager=FakeManager(),  # type: ignore[arg-type]
+            api=FakeAPI(pipeline_status="running"),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+        )
+
+        self.assertFalse(result["pipeline_complete"])
+        self.assertTrue(
+            any("may still change" in item.lower() for item in result["warnings"])
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
