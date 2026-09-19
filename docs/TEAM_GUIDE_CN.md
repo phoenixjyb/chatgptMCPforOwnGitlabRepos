@@ -1,4 +1,4 @@
-# 团队安装、配置与使用完整指南（ActualCoder + 自建 GitLab）
+# ReasonFirst 团队安装、配置与使用完整指南（ActualCoder + 自建 GitLab）
 
 > 适用对象：需要在 **私有 / 自建 GitLab** 上使用 Codex CLI、GitHub Copilot CLI 等本地 coding agent 进行真实代码开发的团队成员。
 >
@@ -8,7 +8,52 @@
 
 ## 0. 这套工具解决什么问题
 
-目标是把“AI 负责写代码”和“GitLab / Git 操作”拆开：
+这个项目现在叫 **ReasonFirst**。
+
+它的核心不是“让一个 AI 包办所有开发工作”，而是：
+
+> **Reasoning-first coding orchestration：先把最强的推理能力用于研究、架构、任务拆解、Debug 和 Review，再把高频代码执行交给 Codex / Copilot 等 coding agent。**
+
+一句话：
+
+> **把 reasoning capacity 用在 reasoning 上，把 coding-agent quota 用在 coding 上。**
+
+完整设计哲学见：[ReasonFirst Design Philosophy](DESIGN_PHILOSOPHY.md)。
+
+ReasonFirst 将系统分成四层：
+
+```text
+Reasoning Plane
+  ChatGPT / future reasoning interfaces
+        │
+        │ research / architecture / planning / review
+        ▼
+Control Plane
+  ReasonFirst
+  └── ActualCoder + gitlab-agent
+        │
+        │ controlled task handoff
+        ▼
+Execution Plane
+  Codex / Copilot / future coding agents
+        │
+        │ edit / build / test / iterate
+        ▼
+Feedback Plane
+  Git diff / MR / CI / review evidence
+        │
+        └──────────────► 回到 Reasoning Plane
+```
+
+其中：
+
+- **ReasonFirst**：整个产品/架构；
+- **ActualCoder**：高层 coding orchestration engine 和 CLI；
+- **gitlab-agent**：workspace / Git / GitLab 的低层 control plane；
+- **Codex / Copilot**：可替换的执行 backend；
+- **GitLab**：当前第一个完整实现的 SCM/CI adapter，而不是产品本身。
+
+目标是把“AI 负责思考/写代码”和“GitLab / Git 状态控制”明确拆开：
 
 ```text
 Codex CLI ───────┐
@@ -102,8 +147,8 @@ uv --version
 ## 2. 克隆仓库
 
 ```bash
-git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
-cd chatgptMCPforOwnGitlabRepos
+git clone https://github.com/phoenixjyb/reasonfirst.git
+cd reasonfirst
 ```
 
 团队日常使用直接使用 `main`：
@@ -1402,6 +1447,7 @@ actual-coder agents
 
 # 相关文档
 
+- [ReasonFirst Design Philosophy](DESIGN_PHILOSOPHY.md)
 - [ActualCoder Quickstart](ACTUAL_CODER_QUICKSTART.md)
 - [团队 OpenAI Secure MCP Tunnel 配置指南](OPENAI_TUNNEL_TEAM_SETUP_CN.md)
 - [ChatGPT MCP 中文配置教程](SETUP_TUTORIAL_CN.md)
