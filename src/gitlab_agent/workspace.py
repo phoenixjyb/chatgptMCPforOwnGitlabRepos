@@ -191,7 +191,7 @@ class WorkspaceManager:
         if require_token and not token:
             raise RuntimeError(
                 "No Git credential is configured. Set GITLAB_GIT_TOKEN "
-                "(recommended for v0.2 writes) or GITLAB_TOKEN."
+                "(recommended for ActualCoder writes) or GITLAB_TOKEN."
             )
         if not token:
             yield env
@@ -454,7 +454,7 @@ class WorkspaceManager:
         project = project.strip().strip("/")
         if not project or "/" not in project:
             raise ValueError(
-                "v0.2 workspaces require GitLab path_with_namespace, e.g. team/project"
+                "Managed workspaces require GitLab path_with_namespace, e.g. team/project"
             )
 
         self._progress(f"preparing workspace for {project}")
@@ -1094,7 +1094,7 @@ class WorkspaceManager:
         if state.pushed:
             raise RuntimeError(
                 "This workspace branch is already marked as pushed. "
-                "For the no-broad-API v0.2 flow, create the MR on the first push "
+                "For the managed no-broad-API flow, create the MR on the first push "
                 "with push-mr rather than calling push first."
             )
         worktree, _ = self._assert_pushable(state)
