@@ -60,8 +60,8 @@ Useful official documentation:
 ## 2. Clone and install
 
 ```bash
-git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
-cd chatgptMCPforOwnGitlabRepos
+git clone https://github.com/phoenixjyb/reasonfirst.git
+cd reasonfirst
 
 uv sync
 ```
@@ -235,7 +235,7 @@ tunnel-client init \
   --sample sample_mcp_stdio_local \
   --profile selfhosted-gitlab \
   --tunnel-id tunnel_YOUR_ACTUAL_ID \
-  --mcp-command "/absolute/path/to/chatgptMCPforOwnGitlabRepos/run_mcp.sh"
+  --mcp-command "/absolute/path/to/reasonfirst/run_mcp.sh"
 ```
 
 The current working directory does not matter because `--mcp-command` is an absolute path and `run_mcp.sh` changes into its own directory.
