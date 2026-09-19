@@ -60,8 +60,8 @@ Useful official documentation:
 ## 2. Clone and install
 
 ```bash
-git clone https://github.com/phoenixjyb/reasonfirst.git
-cd reasonfirst
+git clone https://github.com/phoenixjyb/reasonFirst.git
+cd reasonFirst
 
 uv sync
 ```
