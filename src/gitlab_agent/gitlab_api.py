@@ -150,19 +150,33 @@ class GitLabAPI:
         *,
         include_retried: bool = False,
         per_page: int = 100,
+        max_pages: int = 10,
     ) -> list[dict[str, Any]]:
         encoded = quote(project.strip(), safe="")
-        data = self.get_json(
-            f"/projects/{encoded}/pipelines/{pipeline_id}/jobs",
-            params={
-                "include_retried": str(include_retried).lower(),
-                "per_page": max(1, min(per_page, 100)),
-                "page": 1,
-            },
+        page_size = max(1, min(per_page, 100))
+        page_cap = max(1, min(max_pages, 20))
+        items: list[dict[str, Any]] = []
+
+        for page in range(1, page_cap + 1):
+            data = self.get_json(
+                f"/projects/{encoded}/pipelines/{pipeline_id}/jobs",
+                params={
+                    "include_retried": str(include_retried).lower(),
+                    "per_page": page_size,
+                    "page": page,
+                },
+            )
+            if not isinstance(data, list):
+                raise RuntimeError("Unexpected GitLab pipeline jobs response")
+
+            items.extend(item for item in data if isinstance(item, dict))
+            if len(data) < page_size:
+                return items
+
+        raise RuntimeError(
+            f"Pipeline {pipeline_id} has more than {page_cap * page_size} jobs; "
+            "refusing to return potentially incomplete CI evidence"
         )
-        if not isinstance(data, list):
-            raise RuntimeError("Unexpected GitLab pipeline jobs response")
-        return [item for item in data if isinstance(item, dict)]
 
     def job_trace(self, project: str, job_id: int) -> str:
         encoded = quote(project.strip(), safe="")
