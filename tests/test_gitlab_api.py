@@ -46,6 +46,55 @@ class GitLabAPITests(unittest.TestCase):
             "http://gitlab.example.internal/api/v4/projects/team%2Fproject/merge_requests/42"
         )
 
+    def test_pipeline_helpers_use_expected_paths_and_params(self) -> None:
+        response = MagicMock()
+        response.is_error = False
+        response.json.return_value = [
+            {"id": 12, "status": "failed", "sha": "abc", "ref": "feature"}
+        ]
+
+        client = MagicMock()
+        client.get.return_value = response
+        client_cm = MagicMock()
+        client_cm.__enter__.return_value = client
+        client_cm.__exit__.return_value = False
+
+        with patch("gitlab_agent.gitlab_api.httpx.Client", return_value=client_cm):
+            api = GitLabAPI(self.settings())
+            result = api.pipelines("team/project", ref="feature", per_page=7)
+
+        self.assertEqual(result[0]["id"], 12)
+        client.get.assert_called_once_with(
+            "http://gitlab.example.internal/api/v4/projects/team%2Fproject/pipelines",
+            params={
+                "ref": "feature",
+                "per_page": 7,
+                "page": 1,
+                "order_by": "id",
+                "sort": "desc",
+            },
+        )
+
+    def test_job_trace_reads_text(self) -> None:
+        response = MagicMock()
+        response.is_error = False
+        response.text = "build failed\n"
+
+        client = MagicMock()
+        client.get.return_value = response
+        client_cm = MagicMock()
+        client_cm.__enter__.return_value = client
+        client_cm.__exit__.return_value = False
+
+        with patch("gitlab_agent.gitlab_api.httpx.Client", return_value=client_cm):
+            api = GitLabAPI(self.settings())
+            result = api.job_trace("team/project", 99)
+
+        self.assertEqual(result, "build failed\n")
+        client.get.assert_called_once_with(
+            "http://gitlab.example.internal/api/v4/projects/team%2Fproject/jobs/99/trace"
+        )
+
     def test_api_operations_require_gitlab_token(self) -> None:
         api = GitLabAPI(self.settings(token=""))
         with self.assertRaises(RuntimeError):
