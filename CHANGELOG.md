@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Rebrand the project as **ReasonFirst**: reasoning-first coding orchestration.
+- Keep **ActualCoder** / `actual-coder` as the local coding orchestration engine and CLI.
+- Keep `gitlab-agent` as the current GitLab/workspace control plane.
+- Reframe GitLab as the first SCM/CI adapter rather than the product identity.
+- Add `docs/DESIGN_PHILOSOPHY.md` describing the Reasoning / Execution / Control / Feedback planes and the subscription-efficient architecture.
+- Update README, team/setup documentation, MCP identity, and package description for the ReasonFirst naming.
+- Preserve existing CLI names, config locations, workspace paths, and Python distribution name in this branding pass to avoid breaking v0.3 users.
+
 ## 0.3.0 - 2026-09-19
 
 - Complete the ActualCoder lifecycle: `doctor → project contract → auto backend → start → finish → GitLab CI feedback → resume`.
