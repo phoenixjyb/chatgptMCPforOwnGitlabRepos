@@ -27,6 +27,34 @@ MAX_EXECUTABLE_LENGTH = 128
 _SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/-]{1,200}$")
 
 
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects ambiguous duplicate mapping keys."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.nodes.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as exc:
+            raise yaml.YAMLError("YAML mapping keys must be hashable") from exc
+        if duplicate:
+            raise yaml.YAMLError(f"Duplicate YAML mapping key: {key!r}")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
 @dataclass(frozen=True)
 class ProjectConfigResult:
     found: bool
@@ -185,7 +213,7 @@ def parse_project_config(
         )
 
     try:
-        loaded = yaml.safe_load(text)
+        loaded = yaml.load(text, Loader=_UniqueKeySafeLoader)
     except yaml.YAMLError as exc:
         errors.append(f"Invalid YAML: {exc}")
         loaded = {}
