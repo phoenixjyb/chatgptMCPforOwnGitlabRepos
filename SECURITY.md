@@ -34,15 +34,36 @@ The local coding engine:
 
 `gitlab-agent run` constrains the executable, cwd, timeout, output, and environment, and strips obvious secret variables.
 
-It does **not** provide OS/container filesystem isolation. Repository build scripts are code execution. A malicious Makefile, package lifecycle script, Python test, or binary can attempt to read other host files using absolute paths or make network requests.
+It does **not** provide OS/container filesystem isolation. Repository build scripts are code execution. A malicious Makefile, package lifecycle script, Python test, package-manager lifecycle hook, or binary can attempt to read other host files using absolute paths or make network requests.
 
-Run untrusted repositories in a container/VM or on a disposable host.
+The same boundary applies to v0.3 `.actualcoder.yaml` validation commands. The repository contract cannot expand `GITLAB_ALLOWED_EXECUTABLES`, but an already-approved executable such as `uv`, `python`, `make`, `npm`, or `pytest` can still execute repository-controlled code.
+
+Therefore:
+
+- review/protect `.actualcoder.yaml` like build/CI configuration;
+- use `actual-coder project-config PROJECT --validate` to inspect the effective contract;
+- understand that `actual-coder finish --dry-run` means **no Git commit/push**, not “no code execution” — configured validation commands still run;
+- run untrusted or externally supplied repositories in a container/VM or on a disposable host.
 
 ## Prompt injection
 
-Repository files, MR descriptions, issues, build output, and CI logs are untrusted content. They can contain instructions intended to manipulate an AI system.
+Repository files, MR descriptions, issues, build output, project-contract instructions, and CI logs can contain instructions intended to manipulate an AI system.
 
-Keep the ChatGPT MCP read-only on personal Pro, review ActualCoder backend actions, preserve project/branch allowlists, and avoid exposing unrelated secrets to build/test processes.
+v0.3 applies explicit trust boundaries:
+
+- `.actualcoder.yaml` guidance is labeled repository-owned and subordinate to the user goal / ActualCoder rules;
+- `.actualcoder.yaml` is a built-in protected path in `actual-coder finish`;
+- project contracts are size/cardinality bounded and reject duplicate YAML keys;
+- CI logs are labeled untrusted diagnostic data, ANSI-cleaned, size-capped, and credential-redacted before entering a coding-agent prompt;
+- `resume --from-ci` refuses CI whose pipeline SHA does not match the workspace HEAD.
+
+These are defense-in-depth controls, not a guarantee that model behavior cannot be influenced by malicious text. Keep the ChatGPT MCP read-only on personal Pro, review ActualCoder backend actions, preserve project/branch allowlists, and avoid exposing unrelated secrets to build/test processes.
+
+## Workspace concurrency and state
+
+Managed workspace state is local and persistent, but v0.3 does not yet implement per-workspace process locking. Do not run concurrent mutating ActualCoder/gitlab-agent commands against the same workspace from multiple terminals/processes.
+
+`actual-coder finish` fingerprints the reviewed post-validation workspace state and re-checks it immediately before commit/push, which closes the review-to-write change window for that workflow. General workspace locking/crash-recovery remains planned for a later release.
 
 ## HTTP GitLab
 
