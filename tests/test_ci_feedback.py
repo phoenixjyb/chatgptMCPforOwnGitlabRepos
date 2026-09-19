@@ -90,14 +90,26 @@ class FakeAPI:
             },
         ]
 
-    def job_trace(self, project: str, job_id: int) -> str:
+    def job_trace_tail(
+        self,
+        project: str,
+        job_id: int,
+        *,
+        tail_bytes: int,
+    ) -> dict[str, object]:
         self.trace_calls.append(job_id)
         token = "gl" + "pat-" + "abcdefghijklmnop"
-        return (
+        content = (
             "\x1b[31mFAILED test_timeout\x1b[0m\n"
             f"GITLAB_TOKEN={token}\n"
             "AssertionError: expected 3 got 4\n"
         )
+        return {
+            "content": content,
+            "truncated": False,
+            "original_text_bytes": len(content.encode("utf-8")),
+            "tail_bytes": tail_bytes,
+        }
 
 
 class CIFeedbackTests(unittest.TestCase):
