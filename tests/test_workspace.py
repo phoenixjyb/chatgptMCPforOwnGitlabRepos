@@ -102,6 +102,14 @@ class WorkspaceManagerTests(unittest.TestCase):
         self.assertIn("version: 1", str(result["content"]))
         self.assertEqual(result["ref"], branch)
 
+        with self.assertRaisesRegex(RuntimeError, "too large to read"):
+            self.manager.read_remote_text_file(
+                "team/project",
+                ".actualcoder.yaml",
+                ref=branch,
+                max_bytes=8,
+            )
+
         missing = self.manager.read_remote_text_file(
             "team/project",
             ".does-not-exist",
