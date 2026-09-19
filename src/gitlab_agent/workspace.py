@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import stat
 import subprocess
 import sys
@@ -290,6 +289,68 @@ class WorkspaceManager:
     def _remote_needs_auth(self, remote_url: str) -> bool:
         return remote_url.startswith(("http://", "https://"))
 
+    def _is_ancestor(self, repo_path: Path, ancestor: str, descendant: str) -> bool:
+        result = self._run_git(
+            ["--git-dir", str(repo_path), "merge-base", "--is-ancestor", ancestor, descendant],
+            check=False,
+        )
+        if result.returncode not in {0, 1}:
+            raise RuntimeError("Could not establish commit ancestry; preserving local work")
+        return result.returncode == 0
+
+    def _fetch_published_tip(self, state: WorkspaceState, repo_path: Path) -> str:
+        """Fetch fresh publication evidence, never trusting a cached tracking ref."""
+        remote_url = self.clone_url(state.project)
+        configured_url = self._run_git(
+            ["--git-dir", str(repo_path), "remote", "get-url", "origin"]
+        ).stdout.strip()
+        if configured_url != remote_url:
+            raise RuntimeError("Cached repository remote mismatch; preserving local work")
+
+        # A unique ref avoids consulting stale refs or overwriting shared FETCH_HEAD.
+        probe_ref = f"refs/actualcoder/publication/{uuid.uuid4().hex}"
+        try:
+            self._run_git(
+                [
+                    "--git-dir", str(repo_path), "fetch", "--no-tags",
+                    "--no-write-fetch-head", remote_url,
+                    f"refs/heads/{state.branch}:{probe_ref}",
+                ],
+                auth=self._remote_needs_auth(remote_url),
+            )
+            return self._run_git(
+                ["--git-dir", str(repo_path), "rev-parse", "--verify", f"{probe_ref}^{{commit}}"]
+            ).stdout.strip()
+        except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
+            raise RuntimeError(
+                "Cannot verify remote publication; preserving local work. "
+                "Check remote branch availability/network/authentication, then retry. "
+                "Use cleanup --force only to intentionally discard local work."
+            ) from exc
+        finally:
+            self._run_git(
+                ["--git-dir", str(repo_path), "update-ref", "-d", probe_ref],
+                check=False,
+            )
+
+    def _cleanup_paths(self, state: WorkspaceState) -> tuple[Path, Path]:
+        """Validate repository identity before any destructive cleanup operation."""
+        self.settings.assert_project_allowed_for_workspace(state.project)
+        repo_path = self._repo_path(state.project).resolve()
+        worktree = self._worktree(state)
+        if Path(state.repo_path).resolve() != repo_path:
+            raise RuntimeError("Workspace repository path mismatch; preserving local work")
+        common_dir = self._run_git(["rev-parse", "--git-common-dir"], cwd=worktree).stdout.strip()
+        if (worktree / common_dir).resolve() != repo_path:
+            raise RuntimeError("Workspace repository identity mismatch; preserving local work")
+        if (
+            not state.branch.startswith(self.settings.branch_prefix)
+            or state.branch == state.base_ref
+        ):
+            raise RuntimeError("Refusing cleanup of a branch outside managed feature-branch policy")
+        self._run_git(["check-ref-format", f"refs/heads/{state.branch}"])
+        return repo_path, worktree
+
     def _ensure_cached_repo(self, project: str) -> Path:
         self.settings.assert_project_allowed_for_workspace(project)
         repo_path = self._repo_path(project)
@@ -571,8 +632,15 @@ class WorkspaceManager:
                     f"Branch {branch!r} is already checked out in a managed Git worktree. "
                     "Use gitlab-agent list/resume instead of checkout-branch/checkout-mr."
                 )
+            local_sha = existing.stdout.split()[0]
+            if not self._is_ancestor(repo_path, local_sha, remote_sha):
+                raise RuntimeError(
+                    f"Local branch {branch!r} contains unpublished commits. "
+                    "Preserve/recover that branch before reconstructing its remote MR."
+                )
+            # Delete only the exact tip whose publication was checked above.
             self._run_git(
-                ["--git-dir", str(repo_path), "branch", "-D", branch]
+                ["--git-dir", str(repo_path), "update-ref", "-d", f"refs/heads/{branch}", local_sha]
             )
 
         self._progress(f"creating worktree {workspace_id} from origin/{branch} ...")
@@ -585,7 +653,7 @@ class WorkspaceManager:
                 "-b",
                 branch,
                 str(worktree_path),
-                remote_ref,
+                remote_sha,
             ]
         )
         self._run_git(
@@ -1150,32 +1218,45 @@ class WorkspaceManager:
 
     def cleanup(self, workspace_id: str, *, force: bool = False) -> dict[str, object]:
         state = self.get_state(workspace_id)
+        repo_path, worktree = self._cleanup_paths(state)
         status = self.status(workspace_id)
+        if status["branch"] != state.branch:
+            raise RuntimeError("Workspace branch changed; preserving local work")
+        head = str(status["head"])
+
         if not force:
             if status["dirty"]:
                 raise RuntimeError("Workspace has uncommitted changes; use force to discard")
-            if int(status["commits_ahead_of_base"]) > 0 and not state.pushed:
-                raise RuntimeError("Workspace has unpushed commits; use force to discard")
+            if int(status["commits_ahead_of_base"]) > 0:
+                # `pushed` records a past event, not publication of the current HEAD.
+                # This also reconciles a successful push followed by a state-save failure.
+                published_tip = self._fetch_published_tip(state, repo_path)
+                if not self._is_ancestor(repo_path, head, published_tip):
+                    raise RuntimeError(
+                        "Workspace has unpublished commits; push them before cleanup, "
+                        "or use --force only to intentionally discard local work"
+                    )
 
-        repo_path = Path(state.repo_path)
-        worktree = Path(state.worktree_path)
-        if worktree.exists():
-            args = [
-                "--git-dir",
-                str(repo_path),
-                "worktree",
-                "remove",
-            ]
-            if force:
-                args.append("--force")
-            args.append(str(worktree))
-            self._run_git(args)
+        # Remote verification can take time. Refuse if a writer changed the reviewed
+        # state in the meantime. This is not a replacement for process locking.
+        self._cleanup_paths(state)
+        current = self.status(workspace_id)
+        if (
+            self.get_state(workspace_id) != state
+            or any(current[key] != status[key] for key in ("head", "branch", "status_porcelain"))
+        ):
+            raise RuntimeError("Workspace changed during cleanup checks; preserving local work")
 
+        args = ["--git-dir", str(repo_path), "worktree", "remove"]
+        if force:
+            args.append("--force")
+        args.append(str(worktree))
+        self._run_git(args)
+
+        # Compare-and-delete prevents removing a branch advanced after our check.
+        # On failure keep the branch and metadata for explicit recovery.
         self._run_git(
-            ["--git-dir", str(repo_path), "branch", "-D", state.branch],
-            check=False,
+            ["--git-dir", str(repo_path), "update-ref", "-d", f"refs/heads/{state.branch}", head]
         )
         self._state_path(workspace_id).unlink(missing_ok=True)
-        if worktree.exists():
-            shutil.rmtree(worktree, ignore_errors=True)
         return {"workspace_id": workspace_id, "removed": True}
