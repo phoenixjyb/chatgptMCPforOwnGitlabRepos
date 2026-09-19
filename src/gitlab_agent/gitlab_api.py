@@ -43,7 +43,11 @@ class GitLabAPI:
         url = f"{self.settings.gitlab_base_url}/api/v4{path}"
         try:
             with self._client() as client:
-                response = client.get(url, params=params)
+                response = (
+                    client.get(url)
+                    if params is None
+                    else client.get(url, params=params)
+                )
         except httpx.HTTPError as exc:
             raise RuntimeError(f"GitLab API request failed for {url}: {exc}") from exc
 
