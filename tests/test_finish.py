@@ -45,6 +45,9 @@ class FakeManager:
         changed_paths: list[str] | None = None,
         security_diff: str = "",
         contract: str | None = None,
+        reviewability_ok: bool = True,
+        reviewability_issues: list[dict[str, object]] | None = None,
+        diff_truncated: bool = False,
     ) -> None:
         self.root = root
         self._dirty = dirty
@@ -52,6 +55,9 @@ class FakeManager:
         self._changed_paths = changed_paths or ["src/example.py"]
         self._security_diff = security_diff
         self._contract = contract
+        self._reviewability_ok = reviewability_ok
+        self._reviewability_issues = reviewability_issues or []
+        self._diff_truncated = diff_truncated
         self.state = SimpleNamespace(
             workspace_id="abc123def456",
             project="team/project",
@@ -104,11 +110,25 @@ class FakeManager:
     def changed_paths(self, workspace_id: str) -> list[str]:
         return list(self._changed_paths)
 
+    def reviewability(
+        self,
+        workspace_id: str,
+        changed_paths: list[str] | None = None,
+    ) -> dict[str, object]:
+        return {
+            "ok": self._reviewability_ok,
+            "changed_path_count": len(changed_paths or self._changed_paths),
+            "existing_file_bytes": 0,
+            "max_changed_paths": 256,
+            "max_total_bytes": 16 * 1024 * 1024,
+            "issues": list(self._reviewability_issues),
+        }
+
     def diff(self, workspace_id: str) -> dict[str, object]:
         return {
             "workspace_id": workspace_id,
             "base_sha": self.state.base_sha,
-            "truncated": False,
+            "truncated": self._diff_truncated,
             "original_bytes": len(self._security_diff.encode()),
             "diff": self._security_diff,
         }
@@ -205,6 +225,56 @@ class FinishTests(unittest.TestCase):
         self.assertEqual(plan["validations"], [])
         self.assertTrue(
             any("No project validation commands" in item for item in plan["warnings"])
+        )
+
+    def test_unreviewable_change_blocks_finish_and_marks_secret_coverage_incomplete(self) -> None:
+        manager = FakeManager(
+            root=self.root,
+            dirty=True,
+            changed_paths=["artifacts/model.bin"],
+            reviewability_ok=False,
+            reviewability_issues=[
+                {
+                    "path": "artifacts/model.bin",
+                    "reason": "binary_or_non_utf8",
+                    "bytes": 2048,
+                }
+            ],
+        )
+        plan = build_finish_plan(
+            settings=self.settings,
+            manager=manager,  # type: ignore[arg-type]
+            runner=FakeRunner(),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+            commit_message="add binary",
+        )
+
+        self.assertFalse(plan["ok"])
+        self.assertFalse(plan["reviewability"]["ok"])
+        self.assertFalse(plan["secret_scan"]["coverage_complete"])
+        self.assertTrue(
+            any("cannot be fully reviewed" in item for item in plan["blockers"])
+        )
+
+    def test_truncated_human_review_diff_blocks_finish(self) -> None:
+        manager = FakeManager(
+            root=self.root,
+            dirty=True,
+            security_diff="diff content",
+            diff_truncated=True,
+        )
+        plan = build_finish_plan(
+            settings=self.settings,
+            manager=manager,  # type: ignore[arg-type]
+            runner=FakeRunner(),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+            commit_message="large change",
+        )
+
+        self.assertFalse(plan["ok"])
+        self.assertTrue(plan["review_diff"]["truncated"])
+        self.assertTrue(
+            any("review diff was truncated" in item.lower() for item in plan["blockers"])
         )
 
     def test_protected_path_blocks_without_explicit_override(self) -> None:
