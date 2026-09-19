@@ -34,6 +34,21 @@ def _print(data: Any) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
 
+def _command_exit_code(result: dict[str, object]) -> int:
+    """Keep shell status truthful while preserving the raw result in JSON."""
+    if result.get("timed_out"):
+        return 124
+    code = result.get("returncode")
+    if not isinstance(code, int) or isinstance(code, bool):
+        return 1
+    if 0 <= code <= 255:
+        return code
+    if -127 <= code < 0:
+        return 128 - code  # subprocess reports POSIX signal N as -N.
+    # Windows native statuses and other large values must not wrap to shell 0.
+    return 1
+
+
 def _read_text_arg(path: str | None) -> str:
     if path is None or path == "-":
         return sys.stdin.read()
@@ -1169,6 +1184,8 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 command_argv,
                 timeout_seconds=args.timeout,
             )
+            _print(result)
+            return _command_exit_code(result)
         elif args.command == "commit":
             result = manager.commit(args.workspace_id, args.message)
         elif args.command in {"push", "push-update"}:
