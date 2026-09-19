@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.3.0-alpha.6 - Unreleased
+## 0.3.0 - 2026-09-19
+
+- Complete the ActualCoder lifecycle: `doctor → project contract → auto backend → start → finish → GitLab CI feedback → resume`.
+- Add repository-local `.actualcoder.yaml` policy with strict schema, bounded input, duplicate-key rejection, conservative refs/paths, and user-level executable/timeout caps.
+- Add project-aware `--agent auto` selection for Codex/Copilot without invoking a model during discovery.
+- Add high-level `actual-coder start` with doctor preflight, isolated worktree creation, project-aware handoff, and optional interactive launch.
+- Add controlled `actual-coder finish` with validation, reviewability gates, protected-path checks, secret scanning, reviewed-state fingerprinting, human confirmation, and create/update MR behavior.
+- Add `actual-coder ci` plus stale-safe, bounded, ANSI-cleaned, credential-redacted `resume --from-ci` handoffs.
+- Add bounded streaming of failed GitLab CI traces and complete paginated job collection without silent truncation.
+- Keep the ChatGPT MCP read-only and preserve zero direct OpenAI model API usage.
+- Validate the lifecycle against a real private self-hosted GitLab, including a real MR and matching successful MR pipeline.
+- Keep Linux/macOS/native-Windows CI, full-history secret scan, and GitGuardian checks as release gates.
+- Document known limitations: host execution is not a sandbox, same-workspace concurrent writers are unsupported in v0.3, and backend presence checks do not verify login/quota.
+
+See [docs/V0.3_RELEASE_AUDIT_CN.md](docs/V0.3_RELEASE_AUDIT_CN.md) for the release architecture/security audit.
+
+## 0.3.0-alpha.6
 
 - Add `actual-coder ci WORKSPACE` to inspect GitLab pipelines for a managed feature branch.
 - Prefer a pipeline whose SHA matches the current workspace HEAD; otherwise expose the latest branch pipeline as stale.
