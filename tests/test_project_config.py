@@ -143,6 +143,26 @@ protected_paths:
         self.assertTrue(any("Unknown key" in item for item in result.errors))
         self.assertTrue(any("safe repository-relative path" in item for item in result.errors))
 
+    def test_boolean_version_is_not_accepted_as_integer_one(self) -> None:
+        result = parse_project_config(
+            "version: true\n",
+            settings=self.settings,
+            source_ref="main",
+        )
+
+        self.assertFalse(result.valid)
+        self.assertTrue(any("version must be integer 1" in item for item in result.errors))
+
+    def test_non_string_unknown_key_reports_validation_error(self) -> None:
+        result = parse_project_config(
+            "version: 1\n42: value\n",
+            settings=self.settings,
+            source_ref="main",
+        )
+
+        self.assertFalse(result.valid)
+        self.assertTrue(any("Unknown key root.42" in item for item in result.errors))
+
     def test_duplicate_yaml_keys_are_rejected(self) -> None:
         text = """
 version: 1
