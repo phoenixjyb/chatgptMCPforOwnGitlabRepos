@@ -217,8 +217,13 @@ def collect_ci_feedback(
         if not isinstance(job_id, int):
             continue
 
+        requested_tail = max(1_000, min(tail_bytes, 80_000))
         try:
-            trace = api.job_trace(project, job_id)
+            trace_tail = api.job_trace_tail(
+                project,
+                job_id,
+                tail_bytes=requested_tail,
+            )
         except Exception as exc:
             logs.append(
                 {
@@ -229,7 +234,7 @@ def collect_ci_feedback(
                     "web_url": job.get("web_url"),
                     "truncated": False,
                     "original_text_bytes": None,
-                    "tail_bytes": max(1_000, min(tail_bytes, 80_000)),
+                    "tail_bytes": requested_tail,
                     "redactions": [],
                     "content": "",
                     "error": f"Could not read job trace: {exc}",
@@ -237,11 +242,9 @@ def collect_ci_feedback(
             )
             continue
 
-        tail, truncated, original_bytes = _tail_text(
-            trace,
-            max(1_000, min(tail_bytes, 80_000)),
+        redacted, redaction_kinds = redact_sensitive_text(
+            str(trace_tail.get("content") or "")
         )
-        redacted, redaction_kinds = redact_sensitive_text(tail)
         logs.append(
             {
                 "job_id": job_id,
@@ -249,9 +252,9 @@ def collect_ci_feedback(
                 "stage": job.get("stage"),
                 "allow_failure": job.get("allow_failure"),
                 "web_url": job.get("web_url"),
-                "truncated": truncated,
-                "original_text_bytes": original_bytes,
-                "tail_bytes": max(1_000, min(tail_bytes, 80_000)),
+                "truncated": bool(trace_tail.get("truncated")),
+                "original_text_bytes": trace_tail.get("original_text_bytes"),
+                "tail_bytes": trace_tail.get("tail_bytes", requested_tail),
                 "redactions": redaction_kinds,
                 "content": redacted,
                 "error": None,
