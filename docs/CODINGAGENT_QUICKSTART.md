@@ -1,10 +1,10 @@
 # CodingAgent Quickstart (Compatibility Alias)
 
-> **Renamed:** the primary product/CLI is now **ActualCoder** / `actual-coder`.
-> This document is retained for alpha compatibility. See
-> [ACTUAL_CODER_QUICKSTART.md](ACTUAL_CODER_QUICKSTART.md).
+> **ReasonFirst** is the project/product. **ActualCoder** / `actual-coder` is its primary local orchestration engine/CLI.
+>
+> `codingagent` is the former CLI name and remains only as a compatibility alias. See [ACTUAL_CODER_QUICKSTART.md](ACTUAL_CODER_QUICKSTART.md) and [ReasonFirst Design Philosophy](DESIGN_PHILOSOPHY.md).
 
-CodingAgent is the former name of the agent-neutral local coding layer.
+CodingAgent is the former name of the agent-neutral local coding layer now used inside ReasonFirst.
 
 It separates:
 
