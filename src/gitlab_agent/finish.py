@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 from typing import Any
 
@@ -12,7 +13,8 @@ from .project_config import (
     parse_project_config,
 )
 from .runner import CommandRunner
-from .secret_scan import scan_added_diff_for_secrets
+from .secret_scan import scan_added_diff_for_secrets, redact_sensitive_text
+from .history_scan import HistoryScanError, scan_history_secrets
 from .workspace import WorkspaceManager
 
 
@@ -154,10 +156,28 @@ def build_finish_plan(
     changed_paths = manager.changed_paths(workspace_id)
     reviewability = manager.reviewability(workspace_id, changed_paths)
 
+    history_scan: dict[str, object] = {
+        "coverage_complete": False,
+        "findings": [],
+        "error": "History scan skipped because candidate content is not reviewable",
+    }
     if bool(reviewability.get("ok")):
         diff_result = manager.diff(workspace_id)
         security_diff = manager.security_diff(workspace_id)
         secret_findings = scan_added_diff_for_secrets(security_diff)
+        try:
+            history_scan = scan_history_secrets(
+                worktree=Path(str(status["worktree_path"])),
+                base_sha=str(status["base_sha"]),
+                head_sha=str(status["head"]),
+                timeout_seconds=settings.command_timeout_seconds,
+            )
+        except HistoryScanError as exc:
+            history_scan = {"coverage_complete": False, "findings": [], "error": str(exc)}
+        secret_findings.extend(history_scan["findings"])
+        # Keep raw content solely for the reviewed-state fingerprint, not output.
+        redacted_diff, redactions = redact_sensitive_text(str(diff_result["diff"]))
+        diff_result = {**diff_result, "diff": redacted_diff, "redactions": redactions}
     else:
         security_diff = ""
         secret_findings = []
@@ -213,10 +233,14 @@ def build_finish_plan(
             "only when the scope is intentional."
         )
 
+    if not bool(history_scan["coverage_complete"]):
+        blockers.append("Commit-history secret coverage is incomplete; finish is blocked.")
+
     if secret_findings and not allow_secret_match:
         blockers.append(
-            "Potential credentials/secrets were detected in added diff lines; "
-            "remove them or rerun with --allow-secret-match after explicit review."
+            "Potential credentials/secrets were detected in candidate or commit-history additions; "
+            "remove them from the candidate AND unpublished history, or use "
+            "--allow-secret-match only after explicit false-positive review."
         )
 
     if state.pushed and not state.merge_request_url:
@@ -302,8 +326,9 @@ def build_finish_plan(
         "protected_paths": protected_rules,
         "protected_path_changes": protected_changes,
         "secret_scan": {
-            "ok": bool(reviewability.get("ok")) and not secret_findings,
-            "coverage_complete": bool(reviewability.get("ok")),
+            "ok": bool(reviewability.get("ok")) and bool(history_scan["coverage_complete"]) and not secret_findings,
+            "coverage_complete": bool(reviewability.get("ok")) and bool(history_scan["coverage_complete"]),
+            "history": history_scan,
             "findings": secret_findings,
             "overridden": bool(secret_findings and allow_secret_match),
         },

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from gitlab_agent.config import AgentSettings
 from gitlab_agent.finish import build_finish_plan, execute_finish
@@ -178,6 +179,13 @@ class FakeManager:
 
 class FinishTests(unittest.TestCase):
     def setUp(self) -> None:
+        # These are planner unit tests with FakeManager, not real Git history.
+        # Real scanner/finish integration lives in test_finish_history.py.
+        history = patch("gitlab_agent.finish.scan_history_secrets", return_value={
+            "coverage_complete": True, "findings": [], "commit_count": 0,
+        })
+        history.start()
+        self.addCleanup(history.stop)
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
         self.settings = AgentSettings(
