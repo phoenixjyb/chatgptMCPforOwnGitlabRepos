@@ -151,7 +151,7 @@ Renaming those would require state/install migration and is better handled as an
 
 For team installation, configuration, daily workflow, MR recovery, security rules, and troubleshooting, use:
 
-**[团队安装、配置与使用完整指南（中文）](docs/TEAM_GUIDE_CN.md)**
+**[ReasonFirst Onboarding Guide（中文）](docs/ONBOARDING_GUIDE_CN.md)**
 
 For team members using ChatGPT Pro + Secure MCP Tunnel, including Tunnel ID / Runtime API Key setup and OS-specific credential storage:
 
