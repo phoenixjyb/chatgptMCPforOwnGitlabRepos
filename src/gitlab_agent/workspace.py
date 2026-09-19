@@ -358,6 +358,7 @@ class WorkspaceManager:
         *,
         ref: str | None = None,
         refresh_remote: bool = True,
+        max_bytes: int | None = None,
     ) -> dict[str, object]:
         """Read a UTF-8 text file from a fetched remote ref without creating a worktree."""
 
@@ -402,6 +403,24 @@ class WorkspaceManager:
                 "exists": False,
                 "content": None,
             }
+
+        if max_bytes is not None:
+            if max_bytes <= 0:
+                raise ValueError("max_bytes must be positive")
+            size_proc = self._run_git(
+                ["--git-dir", str(repo_path), "cat-file", "-s", spec],
+            )
+            try:
+                blob_size = int(size_proc.stdout.strip())
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"Could not determine size for {rel!r} at {effective_ref!r}"
+                ) from exc
+            if blob_size > max_bytes:
+                raise RuntimeError(
+                    f"{rel} is too large to read: {blob_size} bytes; "
+                    f"maximum is {max_bytes}"
+                )
 
         shown = self._run_git(
             ["--git-dir", str(repo_path), "show", spec],
