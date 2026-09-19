@@ -135,6 +135,18 @@ GitLab is an implementation target, **not the product identity**. The architectu
 - **Codex / Copilot** — current coding backends; replaceable execution workers.
 - **Read-only GitLab MCP** — optional bridge that lets the reasoning interface inspect private/self-hosted GitLab.
 
+### Compatibility names kept in v0.3
+
+The public product/repository name becomes **ReasonFirst**, but several internal names intentionally remain unchanged for compatibility with existing installations:
+
+- CLI: `actual-coder` and `gitlab-agent`;
+- Python package/module: `gitlab_agent`;
+- Python distribution name: `chatgpt-selfhosted-gitlab-mcp`;
+- user config: `~/.config/gitlab-agent/`;
+- existing workspace root defaults such as `~/.local/share/chatgpt-gitlab-mcp/`.
+
+Renaming those would require state/install migration and is better handled as an explicit later compatibility change rather than mixed into the repository-brand rename.
+
 ## Recommended team entry point
 
 For team installation, configuration, daily workflow, MR recovery, security rules, and troubleshooting, use:
