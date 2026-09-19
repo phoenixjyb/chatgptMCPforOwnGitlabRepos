@@ -70,7 +70,7 @@ logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
-logger = logging.getLogger("selfhosted_gitlab_mcp")
+logger = logging.getLogger("reasonfirst_gitlab_mcp")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -158,7 +158,7 @@ class GitLabClient:
         return {
             "PRIVATE-TOKEN": self.token,
             "Accept": "application/json",
-            "User-Agent": "chatgpt-selfhosted-gitlab-mcp/0.2",
+            "User-Agent": "reasonfirst-gitlab-mcp/0.3",
         }
 
     def assert_project_allowed(self, project: str | int) -> None:
@@ -254,9 +254,9 @@ gitlab = GitLabClient()
 READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 
 mcp = MCPServer(
-    "Self-hosted GitLab",
+    "ReasonFirst GitLab Read Bridge",
     instructions=(
-        "Read-only access to a self-managed GitLab instance. "
+        "Read-only GitLab bridge for ReasonFirst, providing access to a self-managed GitLab instance. "
         "Use these tools to inspect repositories, files, code search, merge requests, "
         "pipelines, jobs, and logs. This server intentionally exposes no write actions."
     ),
