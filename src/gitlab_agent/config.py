@@ -155,7 +155,7 @@ class AgentSettings:
             return
         if self.require_write_allowlist:
             raise RuntimeError(
-                "GITLAB_ALLOWED_PROJECTS is empty. For v0.2 local/write workflows, "
+                "GITLAB_ALLOWED_PROJECTS is empty. For local/write workflows, "
                 "configure an explicit project allowlist or set "
                 "GITLAB_REQUIRE_WRITE_ALLOWLIST=false intentionally."
             )
