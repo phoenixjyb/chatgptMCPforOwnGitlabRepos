@@ -47,8 +47,8 @@ brew install uv
 ## 2. 克隆项目
 
 ```bash
-git clone https://github.com/phoenixjyb/chatgptMCPforOwnGitlabRepos.git
-cd chatgptMCPforOwnGitlabRepos
+git clone https://github.com/phoenixjyb/reasonfirst.git
+cd reasonfirst
 uv sync
 ```
 
@@ -169,7 +169,7 @@ tunnel-client init \
   --sample sample_mcp_stdio_local \
   --profile selfhosted-gitlab \
   --tunnel-id tunnel_YOUR_ACTUAL_ID \
-  --mcp-command "/absolute/path/chatgptMCPforOwnGitlabRepos/run_mcp.sh"
+  --mcp-command "/absolute/path/reasonfirst/run_mcp.sh"
 ```
 
 诊断：
