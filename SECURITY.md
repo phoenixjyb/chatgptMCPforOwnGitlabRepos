@@ -16,9 +16,9 @@ This project bridges ChatGPT and local coding backends (through ActualCoder) to 
 
 For the read MCP, use a dedicated read-only identity/token and restrict projects with `GITLAB_ALLOWED_PROJECTS`.
 
-For v0.2 Git writes, prefer a separate Git credential with `write_repository` rather than upgrading the read API token to broad `api` scope.
+For ActualCoder Git writes, prefer a separate Git credential with `write_repository` rather than upgrading the read API token to broad `api` scope.
 
-## v0.2 workspace safety
+## Workspace safety
 
 The local coding engine:
 
