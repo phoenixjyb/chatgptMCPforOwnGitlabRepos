@@ -99,10 +99,11 @@ def scan_added_diff_for_secrets(diff_text: str) -> list[dict[str, object]]:
     return [finding.to_dict() for finding in findings]
 
 
-_ANSI_ESCAPE_RE = re.compile(r"\\x1B(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])")
+_ANSI_ESCAPE_RE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 _GENERIC_SECRET_ASSIGNMENT_RE = re.compile(
-    r"(?i)\\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*)"
-    r"\\s*[:=]\\s*([^\\s'\\\"]+)"
+    r"\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*)"
+    r"\s*[:=]\s*([^\s'\"]+)",
+    re.IGNORECASE,
 )
 
 
@@ -112,10 +113,10 @@ def redact_sensitive_text(text: str) -> tuple[str, list[str]]:
     cleaned = _ANSI_ESCAPE_RE.sub("", text)
     redacted_kinds: list[str] = []
 
+    # Record high-signal formats before generic NAME=value redaction can hide them.
     for kind, pattern in _SECRET_PATTERNS:
         if pattern.search(cleaned):
             redacted_kinds.append(kind)
-            cleaned = pattern.sub(f"[REDACTED:{kind}]", cleaned)
 
     def _replace_assignment(match: re.Match[str]) -> str:
         name = match.group(1)
@@ -123,6 +124,10 @@ def redact_sensitive_text(text: str) -> tuple[str, list[str]]:
         return f"{name}=[REDACTED]"
 
     cleaned = _GENERIC_SECRET_ASSIGNMENT_RE.sub(_replace_assignment, cleaned)
+
+    # Redact high-signal credentials that are not part of an obvious assignment.
+    for kind, pattern in _SECRET_PATTERNS:
+        cleaned = pattern.sub(f"[REDACTED:{kind}]", cleaned)
 
     unique: list[str] = []
     seen: set[str] = set()
