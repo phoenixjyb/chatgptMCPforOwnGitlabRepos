@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.3.0-alpha.5 - Unreleased
+## 0.3.0-alpha.6 - Unreleased
+
+- Add `actual-coder ci WORKSPACE` to inspect GitLab pipelines for a managed feature branch.
+- Prefer a pipeline whose SHA matches the current workspace HEAD; otherwise expose the latest branch pipeline as stale.
+- Add pipeline-job summaries with failed vs blocking-failed job distinction.
+- Fetch only failed-job trace tails with conservative defaults and hard caps.
+- Gracefully retain CI/job metadata when an individual job trace is unavailable.
+- Strip ANSI terminal control codes from CI logs.
+- Redact high-signal credentials and obvious TOKEN/SECRET/PASSWORD/API_KEY assignments before logs enter CLI output or coding-agent prompts.
+- Add structured, explicitly untrusted CI repair context.
+- Add `actual-coder resume WORKSPACE --from-ci` to attach current-head CI evidence to the next coding handoff.
+- Refuse `resume --from-ci` when no pipeline exists or when the latest available pipeline is stale for the workspace HEAD.
+- Warn when the pipeline is still incomplete/running.
+- Pin resume project/backend preference lookup to the workspace base SHA.
+- Keep the CI loop read-only until the user/coding agent makes a repair; subsequent Git writes still go through `actual-coder finish`.
+- Add GitLab pipeline/job/trace API helpers and CI feedback regression tests.
+
+## 0.3.0-alpha.5
 
 - Add `actual-coder finish WORKSPACE` with a separate planning and execution phase.
 - Add `--dry-run` to run validation/security/review planning with zero Git writes.
