@@ -2,7 +2,7 @@
 
 > 团队成员如需完整安装、凭证、安全、日常开发、MR 恢复和故障排查流程，请使用 [TEAM_GUIDE_CN.md](TEAM_GUIDE_CN.md)。
 
-ActualCoder is the agent-neutral local coding layer in this repository. The older `codingagent` CLI remains a compatibility alias during the alpha series.
+ActualCoder is the agent-neutral local coding layer in this repository. The older `codingagent` CLI remains a compatibility alias for existing workflows.
 
 It separates:
 
@@ -168,7 +168,7 @@ actual-coder checkout-mr team/project-a 123 \
 
 ## 7. Safety model
 
-ActualCoder keeps the previously validated v0.2 boundaries:
+ActualCoder v0.3 keeps and extends the previously validated safety boundaries:
 
 - explicit project allowlist by default;
 - generated / reconstructed branches must use the configured safe branch prefix;
@@ -211,7 +211,7 @@ Example:
 
 ## 9. Current backends
 
-v0.2.0 supports:
+v0.3.0 supports:
 
 ```text
 codex
