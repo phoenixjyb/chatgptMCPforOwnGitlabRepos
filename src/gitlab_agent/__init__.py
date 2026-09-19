@@ -1,3 +1,3 @@
-"""Local coding/worktree engine for self-hosted GitLab workflows."""
+"""ActualCoder control-plane engine for the ReasonFirst coding workflow."""
 
 __version__ = "0.3.0"
