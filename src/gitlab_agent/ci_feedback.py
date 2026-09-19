@@ -114,8 +114,8 @@ def collect_ci_feedback(
     manager: WorkspaceManager,
     api: GitLabAPI,
     workspace_id: str,
-    tail_bytes: int = 20_000,
-    max_failed_jobs: int = 5,
+    tail_bytes: int = 12_000,
+    max_failed_jobs: int = 3,
 ) -> dict[str, object]:
     status = manager.status(workspace_id)
     state = manager.get_state(workspace_id)
