@@ -143,6 +143,81 @@ protected_paths:
         self.assertTrue(any("Unknown key" in item for item in result.errors))
         self.assertTrue(any("safe repository-relative path" in item for item in result.errors))
 
+    def test_contract_size_is_bounded_before_yaml_parse(self) -> None:
+        text = "version: 1\ninstructions:\n  - " + ("x" * 70000)
+        result = parse_project_config(
+            text,
+            settings=self.settings,
+            source_ref="main",
+        )
+
+        self.assertFalse(result.valid)
+        self.assertTrue(any("too large" in item for item in result.errors))
+
+    def test_instruction_and_command_cardinality_are_bounded(self) -> None:
+        instructions = "\n".join(f"  - item-{i}" for i in range(40))
+        commands = "\n".join(
+            "    - name: cmd-{0}\n      argv: [pytest, -q]".format(i)
+            for i in range(40)
+        )
+        text = (
+            "version: 1\n"
+            "instructions:\n"
+            + instructions
+            + "\nvalidation:\n  commands:\n"
+            + commands
+            + "\n"
+        )
+        result = parse_project_config(
+            text,
+            settings=self.settings,
+            source_ref="main",
+        )
+
+        self.assertFalse(result.valid)
+        joined = "\n".join(result.errors)
+        self.assertIn("instructions must contain at most", joined)
+        self.assertIn("validation.commands must contain at most", joined)
+
+    def test_unsafe_ref_and_windows_style_path_are_rejected(self) -> None:
+        text = """
+version: 1
+project:
+  base_branch: ../main
+protected_paths:
+  - ..\\outside
+mr:
+  target_branch: --help
+"""
+        result = parse_project_config(
+            text,
+            settings=self.settings,
+            source_ref="main",
+        )
+
+        self.assertFalse(result.valid)
+        joined = "\n".join(result.errors)
+        self.assertIn("project.base_branch", joined)
+        self.assertIn("safe repository-relative path", joined)
+        self.assertIn("mr.target_branch", joined)
+
+    def test_validation_argv_size_and_nul_are_rejected(self) -> None:
+        long_arg = "x" * 5000
+        text = (
+            "version: 1\nvalidation:\n  commands:\n"
+            "    - name: bad\n"
+            "      argv:\n"
+            "        - pytest\n"
+            f"        - {long_arg}\n"
+        )
+        result = parse_project_config(
+            text,
+            settings=self.settings,
+            source_ref="main",
+        )
+        self.assertFalse(result.valid)
+        self.assertTrue(any("UTF-8 bytes" in item for item in result.errors))
+
     def test_missing_contract_is_valid_and_uses_user_defaults(self) -> None:
         result = parse_project_config(
             None,
