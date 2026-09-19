@@ -4,7 +4,7 @@
 >
 > **Use your strongest reasoning model for reasoning. Let coding agents do the coding.**
 
-[![CI](https://github.com/phoenixjyb/reasonfirst/actions/workflows/ci.yml/badge.svg)](https://github.com/phoenixjyb/reasonfirst/actions/workflows/ci.yml)
+[![CI](https://github.com/phoenixjyb/reasonFirst/actions/workflows/ci.yml/badge.svg)](https://github.com/phoenixjyb/reasonFirst/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ReasonFirst connects **high-capability conversational reasoning** with **replaceable coding agents** inside a controlled software-engineering workflow.
@@ -184,8 +184,8 @@ Requirements:
 Clone and prepare on macOS/Linux:
 
 ```bash
-git clone https://github.com/phoenixjyb/reasonfirst.git
-cd reasonfirst
+git clone https://github.com/phoenixjyb/reasonFirst.git
+cd reasonFirst
 
 cp .env.example .env
 chmod 600 .env
@@ -198,8 +198,8 @@ bash scripts/install_user.sh
 On native Windows PowerShell:
 
 ```powershell
-git clone https://github.com/phoenixjyb/reasonfirst.git
-Set-Location reasonfirst
+git clone https://github.com/phoenixjyb/reasonFirst.git
+Set-Location reasonFirst
 
 Copy-Item .env.example .env
 # edit .env
