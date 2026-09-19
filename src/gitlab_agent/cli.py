@@ -1069,7 +1069,7 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 settings,
                 requested=args.agent,
                 project=str(resume_status["project"]),
-                ref=str(resume_status["base_ref"]),
+                ref=str(resume_status["base_sha"]),
             )
 
             ci_feedback: dict[str, object] | None = None
