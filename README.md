@@ -147,9 +147,9 @@ The public product/repository name becomes **ReasonFirst**, but several internal
 
 Renaming those would require state/install migration and is better handled as an explicit later compatibility change rather than mixed into the repository-brand rename.
 
-## Recommended team entry point
+## Onboarding
 
-For team installation, configuration, daily workflow, MR recovery, security rules, and troubleshooting, use:
+For installation, configuration, daily workflow, MR recovery, security rules, and troubleshooting, start here:
 
 **[ReasonFirst Onboarding Guide（中文）](docs/ONBOARDING_GUIDE_CN.md)**
 
