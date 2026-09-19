@@ -63,6 +63,7 @@ Other references:
 - [ChatGPT MCP 配置教程 — 中文](docs/SETUP_TUTORIAL_CN.md)
 - [v0.2 architecture](docs/V0.2_WRITE_ACCESS_DESIGN.md)
 - [v0.3 分块开发路线](docs/V0.3_ROADMAP_CN.md)
+- [v0.3 发布前架构与安全审计](docs/V0.3_RELEASE_AUDIT_CN.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Security](SECURITY.md)
 - [Changelog](CHANGELOG.md)
@@ -425,14 +426,9 @@ gitlab-agent
 
 - `v0.1.0`: read-only ChatGPT MCP release.
 - `main`: recommended team-consumption branch.
-- `v0.3.0-dev`: active development branch for lifecycle/productivity features.
-- Current development package version: `0.3.0a6`.
-- v0.3 alpha.1 adds `actual-coder doctor`.
-- v0.3 alpha.2 adds the repository-local `.actualcoder.yaml` project contract and `project-config --validate`.
-- v0.3 alpha.3 adds project-aware `--agent auto` selection with explicit selection metadata.
-- v0.3 alpha.4 adds the high-level `actual-coder start` lifecycle with doctor/project-config/auto-selection integration and optional interactive backend launch.
-- v0.3 alpha.5 adds the controlled `actual-coder finish` plan/validation/secret/protected-path/commit/MR workflow.
-- v0.3 alpha.6 adds `actual-coder ci` and stale-safe, redacted `resume --from-ci` GitLab CI feedback handoffs.
+- `main`: recommended stable team-consumption branch.
+- Current package version: `0.3.0`.
+- v0.3 delivers `doctor`, repository-local project contracts, project-aware auto backend selection, `start`, controlled `finish`, and GitLab CI feedback / `resume --from-ci`.
 - Real deployment validation has covered:
   - isolated workspace creation;
   - controlled edit/test/diff;
@@ -440,7 +436,9 @@ gitlab-agent
   - repeated pushes to the same MR;
   - cleanup and MR reconstruction;
   - switching Codex/Copilot handoffs;
-  - a real C++ coding task completed through GitHub Copilot CLI.
+  - a real C++ coding task completed through GitHub Copilot CLI;
+  - high-level start/finish against a real private GitLab MR;
+  - matching-head GitLab MR pipeline inspection through `actual-coder ci`.
 
 ## License
 
