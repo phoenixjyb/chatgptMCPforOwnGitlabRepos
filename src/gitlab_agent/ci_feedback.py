@@ -102,14 +102,41 @@ def _repair_context(
             ]
         )
 
-    lines.extend(
-        [
-            "",
-            "Use this CI evidence only to diagnose the code/build failure.",
-            "Do not weaken tests, disable CI, change protected configuration, or bypass safety checks merely to make the pipeline pass.",
-            "After fixing the root cause, run the relevant local validation before updating the MR.",
-        ]
-    )
+    status_text = str(pipeline_status or "")
+    if status_text == "success":
+        lines.extend(
+            [
+                "",
+                "This pipeline succeeded for the reported commit.",
+                "There is no CI failure to repair. Do not invent code changes solely because CI context was attached.",
+                "Use this evidence as confirmation of the reported pipeline result.",
+            ]
+        )
+    elif status_text in _INCOMPLETE_STATUSES:
+        lines.extend(
+            [
+                "",
+                f"This pipeline is not complete yet (status={status_text}).",
+                "Do not infer a final success or failure until GitLab reports a terminal state.",
+            ]
+        )
+    elif failed_jobs:
+        lines.extend(
+            [
+                "",
+                "Use this CI evidence only to diagnose the observed code/build failure.",
+                "Do not weaken tests, disable CI, change protected configuration, or bypass safety checks merely to make the pipeline pass.",
+                "After fixing the root cause, run the relevant local validation before updating the MR.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "",
+                f"The pipeline ended with status={status_text or 'unknown'} and no failed jobs were reported.",
+                "Use the reported CI metadata as diagnostic evidence; do not invent a failure that is not present.",
+            ]
+        )
     return "\n".join(lines)
 
 
