@@ -1,6 +1,6 @@
-# 团队 OpenAI Secure MCP Tunnel 配置指南
+# ReasonFirst 团队 OpenAI Secure MCP Tunnel 配置指南
 
-> 面向每位拥有 ChatGPT Pro 的团队成员。目标：每人用自己的 Tunnel + Runtime Key，把本机/内网的只读 GitLab MCP 安全接入 ChatGPT；ActualCoder 的本地写代码流程与 Tunnel 分离。
+> 这是 ReasonFirst **Reasoning Plane → 私有 GitLab read bridge** 的可选接入方式。面向每位拥有 ChatGPT Pro 的团队成员：每人用自己的 Tunnel + Runtime Key，把本机/内网的只读 GitLab MCP 接入 ChatGPT；ActualCoder 的本地 coding/execution 流程与 Tunnel 分离。
 
 ## 1. 先分清三种身份/凭证
 
