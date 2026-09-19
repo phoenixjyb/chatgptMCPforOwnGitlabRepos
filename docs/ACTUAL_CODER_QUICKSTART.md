@@ -1,10 +1,14 @@
-# ActualCoder Quickstart
+# ReasonFirst / ActualCoder Quickstart
 
-> 团队成员如需完整安装、凭证、安全、日常开发、MR 恢复和故障排查流程，请使用 [TEAM_GUIDE_CN.md](TEAM_GUIDE_CN.md)。
+> **ReasonFirst** is the project/product. **ActualCoder** is its local coding orchestration engine and CLI.
+>
+> For the architecture and rationale, see [ReasonFirst Design Philosophy](DESIGN_PHILOSOPHY.md). 团队成员如需完整安装、凭证、安全、日常开发、MR 恢复和故障排查流程，请使用 [TEAM_GUIDE_CN.md](TEAM_GUIDE_CN.md)。
 
-ActualCoder is the agent-neutral local coding layer in this repository. The older `codingagent` CLI remains a compatibility alias for existing workflows.
+ReasonFirst uses a strong reasoning interface to lead software work and delegates high-volume implementation to replaceable coding agents. ActualCoder is the agent-neutral execution/control layer that turns those tasks into isolated, reviewable development workflows.
 
-It separates:
+The older `codingagent` CLI remains a compatibility alias for existing workflows.
+
+ActualCoder separates:
 
 - **coding backend** — Codex CLI, GitHub Copilot CLI, or future agents;
 - **workspace / GitLab control** — `gitlab-agent`, which owns isolated worktrees,
