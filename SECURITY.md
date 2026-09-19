@@ -1,6 +1,8 @@
-# Security notes
+# ReasonFirst Security Notes
 
-This project bridges ChatGPT and local coding backends (through ActualCoder) to private source code. Treat the MCP host, local worktrees, coding-agent sessions, and credentials as security-sensitive.
+ReasonFirst connects a reasoning interface to local coding backends through the ActualCoder control plane and, today, to private/self-hosted GitLab. Treat the reasoning/MCP host, local worktrees, coding-agent sessions, repository-controlled build/test code, and credentials as security-sensitive.
+
+The product philosophy deliberately separates **intelligence from authority**: a capable reasoning/coding model does not automatically receive unrestricted filesystem, credential, Git, or merge authority.
 
 ## Never commit
 
