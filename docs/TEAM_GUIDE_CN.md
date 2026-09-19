@@ -147,8 +147,8 @@ uv --version
 ## 2. 克隆仓库
 
 ```bash
-git clone https://github.com/phoenixjyb/reasonfirst.git
-cd reasonfirst
+git clone https://github.com/phoenixjyb/reasonFirst.git
+cd reasonFirst
 ```
 
 团队日常使用直接使用 `main`：
