@@ -144,6 +144,18 @@ class CIFeedbackTests(unittest.TestCase):
         self.assertIsNone(result["pipeline"])
         self.assertIn("no pipeline", str(result["repair_context"]).lower())
 
+    def test_success_context_does_not_invent_failure(self) -> None:
+        result = collect_ci_feedback(
+            manager=FakeManager(),  # type: ignore[arg-type]
+            api=FakeAPI(pipeline_status="success"),  # type: ignore[arg-type]
+            workspace_id="abc123def456",
+        )
+
+        context = str(result["repair_context"])
+        self.assertIn("pipeline succeeded", context.lower())
+        self.assertIn("no ci failure to repair", context.lower())
+        self.assertNotIn("diagnose the code/build failure", context)
+
     def test_running_pipeline_warns_results_may_change(self) -> None:
         result = collect_ci_feedback(
             manager=FakeManager(),  # type: ignore[arg-type]
@@ -154,6 +166,10 @@ class CIFeedbackTests(unittest.TestCase):
         self.assertFalse(result["pipeline_complete"])
         self.assertTrue(
             any("may still change" in item.lower() for item in result["warnings"])
+        )
+        self.assertIn(
+            "not complete yet",
+            str(result["repair_context"]).lower(),
         )
 
 
