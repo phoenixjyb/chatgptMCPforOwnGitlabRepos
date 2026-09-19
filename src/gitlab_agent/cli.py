@@ -13,7 +13,11 @@ from .config import AgentSettings
 from .doctor import run_doctor
 from .finish import build_finish_plan, execute_finish
 from .gitlab_api import GitLabAPI
-from .project_config import PROJECT_CONFIG_FILENAME, parse_project_config
+from .project_config import (
+    PROJECT_CONFIG_FILENAME,
+    PROJECT_CONFIG_MAX_BYTES,
+    parse_project_config,
+)
 from .runner import CommandRunner
 from .workspace import WorkspaceManager
 
@@ -311,6 +315,7 @@ def _load_remote_project_contract(
         project,
         PROJECT_CONFIG_FILENAME,
         ref=ref,
+        max_bytes=PROJECT_CONFIG_MAX_BYTES,
     )
     parsed = parse_project_config(
         remote["content"] if remote["exists"] else None,
@@ -456,6 +461,7 @@ def _auto_agent_selection(
         PROJECT_CONFIG_FILENAME,
         ref=ref,
         refresh_remote=refresh_remote,
+        max_bytes=PROJECT_CONFIG_MAX_BYTES,
     )
     parsed = parse_project_config(
         remote["content"] if remote["exists"] else None,
@@ -877,6 +883,12 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 if args.ref is not None:
                     raise ValueError("--file and --ref cannot be used together")
                 local_path = Path(args.file).expanduser().resolve()
+                local_size = local_path.stat().st_size
+                if local_size > PROJECT_CONFIG_MAX_BYTES:
+                    raise RuntimeError(
+                        f"{local_path} is too large: {local_size} bytes; "
+                        f"maximum is {PROJECT_CONFIG_MAX_BYTES}"
+                    )
                 local_text = local_path.read_text(encoding="utf-8")
                 parsed = parse_project_config(
                     local_text,
@@ -894,6 +906,7 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                     args.project,
                     PROJECT_CONFIG_FILENAME,
                     ref=args.ref,
+                    max_bytes=PROJECT_CONFIG_MAX_BYTES,
                 )
                 parsed = parse_project_config(
                     remote["content"] if remote["exists"] else None,
