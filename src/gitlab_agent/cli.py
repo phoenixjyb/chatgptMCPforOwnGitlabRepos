@@ -449,11 +449,13 @@ def _auto_agent_selection(
     *,
     project: str,
     ref: str,
+    refresh_remote: bool = True,
 ) -> dict[str, object]:
     remote = manager.read_remote_text_file(
         project,
         PROJECT_CONFIG_FILENAME,
         ref=ref,
+        refresh_remote=refresh_remote,
     )
     parsed = parse_project_config(
         remote["content"] if remote["exists"] else None,
@@ -492,6 +494,7 @@ def _selection_for_request(
     requested: str,
     project: str,
     ref: str,
+    refresh_remote: bool = True,
 ) -> dict[str, object]:
     if requested == "auto":
         return _auto_agent_selection(
@@ -499,6 +502,7 @@ def _selection_for_request(
             settings,
             project=project,
             ref=ref,
+            refresh_remote=refresh_remote,
         )
     return _select_agent(requested)
 
@@ -1070,6 +1074,7 @@ def main(argv: list[str] | None = None, *, prog: str = "gitlab-agent") -> int:
                 requested=args.agent,
                 project=str(resume_status["project"]),
                 ref=str(resume_status["base_sha"]),
+                refresh_remote=False,
             )
 
             ci_feedback: dict[str, object] | None = None
